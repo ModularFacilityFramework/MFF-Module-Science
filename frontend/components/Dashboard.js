@@ -63,7 +63,7 @@ function Dashboard({ coreApi }) {
   const [activeTab, setActiveTab] = useState(null);
 
   useEffect(() => {
-    api.get('/example/page-access')
+    api.get('/science/page-access')
       .then(res => setAccess(res.data.access))
       .catch(() => setAccess({}));
   }, [api]);

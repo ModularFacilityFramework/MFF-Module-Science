@@ -1,9 +1,9 @@
 {
-  "id": "example",
-  "label": "Example Module",
-  "version": "0.1.21",
-  "tablePrefix": "example_",
-  "mountPath": "/example",
+  "id": "science",
+  "label": "Science",
+  "version": "0.1.2",
+  "tablePrefix": "science_",
+  "mountPath": "/science",
   "backendEntry": "backend/index.js",
   "frontendEntry": "frontend/index.js"
 }
