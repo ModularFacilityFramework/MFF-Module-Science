@@ -93,7 +93,7 @@ SOURCES (how others do it)
 - CCP4 Cloud: https://journals.iucr.org/d/issues/2022/09/00/ai5007/ (project sharing with levels of access).
 
 OPEN QUESTIONS (answered one at a time by the user)
-1. Is the module list right? Add or remove modules.
+1. Module list: ANSWERED 22/11/2026, the list is correct.
 2. Project folder: Linux ACLs kept in step with the members (as proposed), or another way?
 3. Can a project have more than one owner, or only one owner who can hand it over?
 4. Are proteins, complexes and ligands shared between projects (one record linked to many projects), or copied into each project?
