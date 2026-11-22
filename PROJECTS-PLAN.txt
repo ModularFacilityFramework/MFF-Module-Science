@@ -1,0 +1,99 @@
+PROJECTS IN MFF: DESIGN (draft for the user's approval, 22/11/2026)
+
+THE USER'S REQUEST (22/11/2026)
+- Many modules need projects soon. Some modules (AlphaPulldown, ABCFold and many others) must run inside a project.
+- Projects live in the Science module. Science becomes a required dependency of every module that uses projects. (This replaces the 19/11 decision that the project data would sit in core.)
+- What a project holds:
+  - a title, plus an optional text;
+  - proteins, complexes (e.g. ribosomes) and ligands, each added to a project separately.
+- Sharing:
+  - Every project has an owner, who manages its sharing. Administrators and developers see everything.
+  - The sharing picker works like core's existing user/group selection.
+  - A share is read by default and can be raised to write. Write lets the person run jobs in the project folder.
+- Jobs the viewer can't open: a user without access to a module sees that module's jobs in the project greyed out, as "not accessible".
+- Picking projects: a fast, clear way to select one or several projects, with the same look and feel in every module.
+
+MODULES THAT NEED PROJECTS (proposed)
+- science: owns projects, members and the items (proteins, complexes, ligands); shows each project's page. It is the provider.
+- abcfold: every prediction job runs in a project folder. Requires science.
+- alphapulldown: its targets, baits and runs belong to a project. Its local "projects" are replaced by Science's. Requires science.
+- cryoem: samples and sessions belong to a project. Requires science.
+- doppio: MX processing jobs per project. Requires science.
+- pandda2inspect: fragment-screen inspections per project. Requires science.
+- xchem: fragment screening campaigns per project. Requires science.
+- crystaleye: crystallisation plates and images per project. Requires science.
+- bookings (optional): book instrument time against a project. Can come later; would not require science.
+- Not project-based: finance, lab, safety, help, desk, fleet, slurm. Slurm only runs the jobs; the job keeps its project from the module that sent it.
+
+DATA, HELD IN SCIENCE
+- project:
+  - id, number (P-0001), title, description (optional);
+  - owner_user_id;
+  - created and updated times, archived flag;
+  - folder path.
+- project_member: project, user or group, access level (read or write), who added it and when.
+  - Access adds up: the highest grant wins. Example: read as a person plus write through a group gives write.
+  - The owner always has full rights.
+  - Administrators and developers see and manage every project.
+- protein, complex, ligand: their own records, with name and sequence/SMILES/UniProt etc. Each can be added to one or more projects through a link table.
+- project_item: every module job or object recorded against a project:
+  - module id, item type and id, title, status, created_by and created time, and a link.
+  - Modules register these through Science's API, so the project page lists everything in one place.
+
+PERMISSIONS
+- Owner: sees the project and items; adds items and runs jobs in the folder; renames, manages sharing, archives and transfers ownership.
+- Write member (user or via group): sees the project and items; adds items and runs jobs in the folder.
+- Read member (user or via group): sees the project and items only.
+- Administrator / developer: everything.
+- Others: nothing.
+- On the project page, an item from a module the viewer can't use is listed greyed out with "no access to <module>". It is visible, but can't be opened. Core already knows each user's module access.
+
+PROJECT FOLDER
+- One folder per project, e.g. <MFF data base>/projects/P-0001_<short-title>/<module>/...
+- Modules write their job output there.
+- Jobs run as the user (the slurm background identity), so the operating system has to allow members in. Science would keep Linux ACLs on the folder in step with the members:
+  - rwx for write members;
+  - r-x for read members.
+
+THE SHARED PROJECT PICKER (same look everywhere)
+- Where it lives: core, as coreApi.ui.ProjectPicker. It is fed by Science through a "projects provider" that Science registers. Modules can't import Science directly, and this keeps one look and feel everywhere.
+- Modes: pick one project (e.g. ABCFold's Run tab) or several (filters and lists).
+- The picker shows:
+  - a search box, with tabs My projects / Shared with me / All (all only for administrators and developers);
+  - the most recently used projects first;
+  - the chosen projects as chips;
+  - a "+ New project" button.
+- Each row shows: number, title, owner, and a read or write badge.
+- Write-only mode: a module that needs write (to run a job) asks for write-only. Read-only projects are then shown greyed out with a short reason.
+- Memory: the last selection is kept through core's page-state helper.
+- Sharing dialog: core's existing user/group share picker. Each line has a read/write toggle, read by default. Only the owner, administrators and developers can change it.
+
+FOR EACH PROJECT-BASED MODULE
+1. Its manifest has requires: ["science"].
+2. A project is required before it can create a job or item. The picker is at the top of its main page.
+3. It stores project_id on its jobs and items, writes into the project folder, and registers each item with Science.
+4. It checks access through Science before showing or running anything: read lets the user view, write lets the user run, and administrators and developers can do everything.
+5. It follows the page-state rule: the selected project is remembered.
+
+MIGRATION (one-off, throw-away scripts in master/migration)
+- The old app's 1 project: copied into Science.
+- AlphaPulldown's local projects: become Science projects, with their owner kept.
+- Existing ABCFold jobs with no project: moved into a personal project per owner, e.g. "<User>'s jobs", which the owner can rename or reorganise.
+
+ORDER OF WORK (proposed)
+1. Science: projects, members, sharing, items, the API and the project page.
+2. Core: the ProjectPicker component and the projects-provider hook. Reuse the existing share picker.
+3. ABCFold and AlphaPulldown first, as they are needed soonest.
+4. Then: cryoem, doppio, pandda2inspect, xchem and crystaleye.
+5. Migrations after step 3.
+
+SOURCES (how others do it)
+- Benchling permissions: https://help.benchling.com/hc/en-us/articles/9684210957581-Permissions-overview (project owner; Read/Append/Write levels for users, teams and organisations; access adds up).
+- CryoSPARC project sharing (forum): https://discuss.cryosparc.com/t/request-to-improve-project-sharing/13951 (users ask for read-only and group sharing; the owner is tracked per project).
+- CCP4 Cloud: https://journals.iucr.org/d/issues/2022/09/00/ai5007/ (project sharing with levels of access).
+
+OPEN QUESTIONS (answered one at a time by the user)
+1. Is the module list right? Add or remove modules.
+2. Project folder: Linux ACLs kept in step with the members (as proposed), or another way?
+3. Can a project have more than one owner, or only one owner who can hand it over?
+4. Are proteins, complexes and ligands shared between projects (one record linked to many projects), or copied into each project?
