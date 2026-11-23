@@ -1,35 +1,26 @@
-const fs = require('fs');
-const path = require('path');
-const dotenv = require('dotenv');
 const mariadb = require('mariadb');
 
-// Own database, own credentials - written once by mff-core's install/update
-// flow at ../../.env (this module's root, sibling to module.manifest.json).
-// dotenv.parse (not dotenv.config) is required here: mff-core's own backend
-// already calls dotenv.config() for its own .env at startup, which never
-// overwrites a key already in process.env - a second dotenv.config() call
-// for this module's .env would silently be a no-op if any variable name
-// collided with core's, handing this module core's own credentials instead
-// of its own. dotenv.parse() into a local object makes that structurally
-// impossible, which is also why these variables are named MODULE_DB_* and
-// not bare DB_* - never reuse core's exact names here, even by accident.
-const envPath = path.join(__dirname, '..', '..', '.env');
-
-// backend/index.js shadows coreApi.pool with this file's pool unconditionally
-// (see docs/MFF-Core_module-core-api.md). A real install always has envPath
-// by the time this loads (see docs/MFF-Core_module-database-provisioning.md).
-function loadEnv() {
-  if (fs.existsSync(envPath)) return dotenv.parse(fs.readFileSync(envPath));
-  return {};
+// This module's own database pool. The credentials come from core, never from a
+// file of our own: coreApi.getModuleConfig() returns the MODULE_SCIENCE_DB_*
+// values core's provisioner wrote into App_backend/.env, with the prefix
+// stripped (docs/MFF-Core_env-policy.md). The pool is created inside register()
+// (see ../index.js), because getModuleConfig() is bound to this module by core
+// and has nothing to read at require time.
+function createPool(coreApi) {
+  const cfg = coreApi.getModuleConfig();
+  if (!cfg.DB_USER || !cfg.DB_NAME) {
+    // The loader logs this and skips the module, instead of every request failing later with "access denied".
+    throw new Error('science: database credentials are missing (MODULE_SCIENCE_DB_USER / _NAME): run Install/Update for this module so core provisions its database');
+  }
+  return mariadb.createPool({
+    host: cfg.DB_HOST || '127.0.0.1',
+    user: cfg.DB_USER,
+    password: cfg.DB_PASSWORD,
+    database: cfg.DB_NAME,
+    connectionLimit: Number(cfg.DB_CONNECTION_LIMIT) || 5,
+    bigIntAsNumber: true,
+    insertIdAsNumber: true
+  });
 }
-const env = loadEnv();
 
-module.exports = mariadb.createPool({
-  host: env.MODULE_DB_HOST || '127.0.0.1',
-  user: env.MODULE_DB_USER,
-  password: env.MODULE_DB_PASSWORD,
-  database: env.MODULE_DB_NAME,
-  connectionLimit: Number(env.MODULE_DB_CONNECTION_LIMIT) || 5,
-  bigIntAsNumber: true,
-  insertIdAsNumber: true
-});
+module.exports = { createPool };

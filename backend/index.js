@@ -3,13 +3,14 @@
 // for the full coreApi contract. This file is the ONLY place this module talks to core.
 const express = require('express');
 const manifest = require('../module.manifest.json');
-const modulePool = require('./config/database');
+const { createPool } = require('./config/database');
 const buildProjectRouter = require('./routes/projectRoutes');
 const buildMaterialRouter = require('./routes/materialRoutes');
 const buildExternalRouter = require('./routes/externalRoutes');
 
 module.exports = function register(coreApi) {
-  const moduleApi = { ...coreApi, pool: modulePool };
+  // Own database, credentials from coreApi.getModuleConfig(); shadows core's pool for every route below.
+  const moduleApi = { ...coreApi, pool: createPool(coreApi) };
   const router = express.Router();
   router.use(buildProjectRouter(moduleApi));
   router.use(buildMaterialRouter(moduleApi));
