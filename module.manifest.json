@@ -1,9 +1,15 @@
 {
   "id": "science",
   "label": "Science",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "tablePrefix": "science_",
   "mountPath": "/science",
   "backendEntry": "backend/index.js",
-  "frontendEntry": "frontend/index.js"
+  "frontendEntry": "frontend/index.js",
+  "config": [
+    {
+      "key": "DATA_BASE_DIR",
+      "description": "Optional. Absolute path of the MFF data folder. When set, each new project gets the stored path <DATA_BASE_DIR>/projects/P-0001_<short-title> (this module only stores the path; it does not create the folder or set permissions on it)."
+    }
+  ]
 }

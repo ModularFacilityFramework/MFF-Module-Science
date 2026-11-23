@@ -2,12 +2,13 @@
   "name": "mff-module-science",
   "version": "0.1.0",
   "private": true,
-  "description": "Reusable starting point for an MFF-core feature module - clone/copy this per new module, then rename.",
+  "description": "MFF science module: projects, sharing and research materials.",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "lint": "eslint backend frontend --ext .js"
+    "lint": "eslint backend frontend --ext .js",
+    "test": "node --test backend/tests"
   },
   "dependencies": {
     "express": "^5.1.0",

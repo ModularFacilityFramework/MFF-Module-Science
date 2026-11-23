@@ -4,14 +4,16 @@
 const express = require('express');
 const manifest = require('../module.manifest.json');
 const modulePool = require('./config/database');
-const buildExampleRouter = require('./routes/exampleRoutes');
-const buildPageAccessRouter = require('./routes/pageAccessRoutes');
+const buildProjectRouter = require('./routes/projectRoutes');
+const buildMaterialRouter = require('./routes/materialRoutes');
+const buildExternalRouter = require('./routes/externalRoutes');
 
 module.exports = function register(coreApi) {
   const moduleApi = { ...coreApi, pool: modulePool };
   const router = express.Router();
-  router.use(buildExampleRouter(moduleApi));
-  router.use(buildPageAccessRouter(moduleApi));
+  router.use(buildProjectRouter(moduleApi));
+  router.use(buildMaterialRouter(moduleApi));
+  router.use(buildExternalRouter(moduleApi));
   return {
     router,
     moduleId: manifest.id,
