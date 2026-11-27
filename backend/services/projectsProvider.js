@@ -14,7 +14,7 @@ const { listItems } = require('./items');
 const { SCIENCE_LINK, projectStatus, requireMayCreate } = require('./membership');
 const requests = require('./requests');
 const { assignmentOptions, applyAssignment } = require('./assignment');
-const { isApprover } = require('./coreExtras');
+const { isApprover, coreMayCreate } = require('./coreExtras');
 
 function createServerProjectsProvider(coreApi) {
   async function withConnection(fn) {
@@ -49,8 +49,8 @@ function createServerProjectsProvider(coreApi) {
         const { id } = await createProject(conn, coreApi, user, body || {});
         return summary(conn, user, id);
       }),
-    // Core (0.1.224 on) decides who may create; this refuses only someone it refuses too
-    // (no project yet), and does the whole job on an older core.
+    // Core (0.1.224 on) decides who may create and asks this on the way; it refuses only
+    // someone core refuses too (no project yet), and does the whole job on an older core.
     canCreate: (user) =>
       withConnection(async (conn) => (await projectStatus(conn, user, await loadPeople(coreApi))).can_create),
 
@@ -72,12 +72,13 @@ function createServerProjectsProvider(coreApi) {
       });
     },
     // May this user start project-based work, and if not, what can they do?
-    status: (user) =>
-      withConnection(async (conn) => {
+    status: async (user) => {
+      const coreRule = await coreMayCreate(coreApi, user);
+      return withConnection(async (conn) => {
         await ensureTemplateQuietly(conn, coreApi);
         const people = await loadPeople(coreApi);
         const waiting = (await requests.listMine(conn, user.id, people)).find((r) => r.status === 'pending');
-        const { has_project: hasProject, can_request: canRequest } = await projectStatus(conn, user, people);
+        const { has_project: hasProject, can_request: canRequest } = await projectStatus(conn, user, people, coreRule);
         return {
           has_project: hasProject,
           can_request: canRequest,
@@ -85,7 +86,8 @@ function createServerProjectsProvider(coreApi) {
           pending_request: waiting ? { id: waiting.id, title: waiting.title, created_at: waiting.created_at } : null,
           request_link: SCIENCE_LINK
         };
-      }),
+      });
+    },
     // At registration approval (developers and administrators only).
     assignment: {
       options: (approver, targetUserId) =>
@@ -95,8 +97,10 @@ function createServerProjectsProvider(coreApi) {
     },
     // The requester's own side of "Request a project".
     requests: {
-      create: (user, body) =>
-        withConnection(async (conn) => requests.createRequest(conn, user, body || {}, await loadPeople(coreApi))),
+      create: async (user, body) => {
+        const coreRule = await coreMayCreate(coreApi, user);
+        return withConnection(async (conn) => requests.createRequest(conn, user, body || {}, await loadPeople(coreApi), coreRule));
+      },
       mine: (user) =>
         withConnection(async (conn) => requests.listMine(conn, user.id, await loadPeople(coreApi))),
       cancel: (user, id) =>

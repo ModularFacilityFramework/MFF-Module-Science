@@ -15,11 +15,14 @@ const { loadProjectAccess, accessFlags, listProjects, getProjectSummary, createP
 const { findTemplateId, ensureTemplate, ensureTemplateQuietly } = require('../services/template');
 const { parseItem, listItems, upsertItem, removeItem, adoptItems } = require('../services/items');
 const { SCIENCE_LINK, projectStatus, requireMayCreate } = require('../services/membership');
+const { askCoreMayCreate } = require('../services/coreExtras');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
   const auth = coreApi.authenticateToken;
   const pool = coreApi.pool;
+  // Before route(), which holds a database connection.
+  const askCore = askCoreMayCreate(coreApi);
 
   // The module that is calling, as core vouches for it. A user's own direct call has none.
   function callerModule(req) {
@@ -54,9 +57,9 @@ module.exports = function buildRouter(coreApi) {
 
   // GET /external/project-status - may this user start project-based work? has_project is false
   // when they can write in no project (the Project template does not count): send them to `link`.
-  router.get('/external/project-status', auth, route(pool, async (req, res, conn) => {
+  router.get('/external/project-status', auth, askCore, route(pool, async (req, res, conn) => {
     await ensureTemplateQuietly(conn, coreApi);
-    res.json({ ...(await projectStatus(conn, req.user, await loadPeople(coreApi))), link: SCIENCE_LINK });
+    res.json({ ...(await projectStatus(conn, req.user, await loadPeople(coreApi), req.coreMayCreate)), link: SCIENCE_LINK });
   }));
 
   // GET /external/projects/:id - one project in the same flat shape as the list; 404 when the user may not read it.
@@ -69,9 +72,9 @@ module.exports = function buildRouter(coreApi) {
 
   // POST /external/projects { title, description? } - the picker's "+ New project". The user becomes the
   // owner. Refused (403) to someone with no project yet.
-  router.post('/external/projects', auth, route(pool, async (req, res, conn) => {
+  router.post('/external/projects', auth, askCore, route(pool, async (req, res, conn) => {
     await ensureTemplateQuietly(conn, coreApi);
-    await requireMayCreate(conn, req.user, await loadPeople(coreApi));
+    await requireMayCreate(conn, req.user, await loadPeople(coreApi), req.coreMayCreate);
     const { id } = await createProject(conn, coreApi, req.user, req.body || {});
     res.status(201).json(await getProjectSummary(conn, id, req.user, await loadPeople(coreApi)));
   }));

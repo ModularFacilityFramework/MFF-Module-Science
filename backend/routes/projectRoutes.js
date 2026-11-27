@@ -10,6 +10,7 @@ const { loadPeople, describeUser, userLabel, isSelectable } = require('../servic
 const { loadProjectAccess, accessFlags, listProjects, createProject } = require('../services/projects');
 const { findTemplateId, ensureTemplateQuietly } = require('../services/template');
 const { requireMayCreate, removalImpact } = require('../services/membership');
+const { askCoreMayCreate } = require('../services/coreExtras');
 const { listItems } = require('../services/items');
 
 module.exports = function buildRouter(coreApi) {
@@ -41,9 +42,9 @@ module.exports = function buildRouter(coreApi) {
 
   // POST /projects { title, description } - the caller becomes the owner. Someone with no
   // project yet asks for one instead (services/membership.js).
-  router.post('/projects', auth, route(pool, async (req, res, conn) => {
+  router.post('/projects', auth, askCoreMayCreate(coreApi), route(pool, async (req, res, conn) => {
     await ensureTemplateQuietly(conn, coreApi);
-    await requireMayCreate(conn, req.user, await loadPeople(coreApi));
+    await requireMayCreate(conn, req.user, await loadPeople(coreApi), req.coreMayCreate);
     res.status(201).json(await createProject(conn, coreApi, req.user, req.body || {}));
   }));
 

@@ -2,7 +2,9 @@
 // A project counts when the person can write in it, it is not archived and it is
 // not the Project template. Someone with no such project cannot make one
 // themselves: they ask for one (services/requests.js). Administrators and
-// developers can always create.
+// developers can always create. On core 0.1.224 or later core's own rule (this
+// one plus its settings) decides who may create: coreRule below, from
+// coreMayCreate() in services/coreExtras.js; null where core has none.
 const { isStaff, resolveAccess, canWrite } = require('./access');
 const { userLabel } = require('./people');
 const { listProjects } = require('./projects');
@@ -16,16 +18,17 @@ const isWorkProject = (p) => !!p.can_write && !p.is_template && !p.archived;
 
 const mayCreate = (user, projectCount) => isStaff(user) || projectCount > 0;
 
-// { has_project, project_count, can_create, can_request }
-async function projectStatus(conn, user, people) {
+// { has_project, project_count, can_create, can_request }. Whoever cannot create
+// asks for a project.
+async function projectStatus(conn, user, people, coreRule = null) {
   const count = (await listProjects(conn, user, people)).filter(isWorkProject).length;
-  const create = mayCreate(user, count);
+  const create = coreRule === null ? mayCreate(user, count) : coreRule;
   return { has_project: count > 0, project_count: count, can_create: create, can_request: !create };
 }
 
-async function requireMayCreate(conn, user, people) {
-  if (!(await projectStatus(conn, user, people)).can_create) {
-    throw new HttpError(403, 'You have no project yet. Ask for one in Science with "Request a project".');
+async function requireMayCreate(conn, user, people, coreRule = null) {
+  if (!(await projectStatus(conn, user, people, coreRule)).can_create) {
+    throw new HttpError(403, 'You cannot create a project. Ask for one in Science with "Request a project".');
   }
 }
 

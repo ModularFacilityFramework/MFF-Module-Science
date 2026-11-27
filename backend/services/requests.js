@@ -90,9 +90,9 @@ async function pendingCount(conn) {
   return Number(n);
 }
 
-async function createRequest(conn, user, body, people) {
+async function createRequest(conn, user, body, people, coreRule = null) {
   const fields = parseRequest(body, people);
-  if (!(await projectStatus(conn, user, people)).can_request) {
+  if (!(await projectStatus(conn, user, people, coreRule)).can_request) {
     throw new HttpError(409, 'You can already create a project yourself, with "+ New project"');
   }
   try {

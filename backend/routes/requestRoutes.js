@@ -8,7 +8,7 @@ const { isStaff } = require('../services/access');
 const { loadPeople } = require('../services/people');
 const { projectStatus } = require('../services/membership');
 const requests = require('../services/requests');
-const { APPROVAL_PAGE, notifyDecision } = require('../services/coreExtras');
+const { APPROVAL_PAGE, askCoreMayCreate, notifyDecision } = require('../services/coreExtras');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
@@ -27,13 +27,15 @@ module.exports = function buildRouter(coreApi) {
     ? coreApi.requirePage(APPROVAL_PAGE)
     : (req, res, next) => (isStaff(req.user) ? next() : res.status(403).json({ error: 'Only administrators and developers can do this' }));
   const approver = [auth, inPerson, approverPage];
+  // Before route(), which holds a database connection.
+  const askCore = askCoreMayCreate(coreApi);
 
   // GET /status - { has_project, project_count, can_create, can_request, pending_request, new_decisions }
-  router.get('/status', auth, route(pool, async (req, res, conn) => {
+  router.get('/status', auth, askCore, route(pool, async (req, res, conn) => {
     const people = await loadPeople(coreApi);
     const mine = await requests.listMine(conn, req.user.id, people);
     res.json({
-      ...(await projectStatus(conn, req.user, people)),
+      ...(await projectStatus(conn, req.user, people, req.coreMayCreate)),
       pending_request: mine.find((r) => r.status === 'pending') || null,
       new_decisions: mine.filter((r) => r.unseen)
     });
@@ -48,8 +50,8 @@ module.exports = function buildRouter(coreApi) {
   }));
 
   // POST /requests { title, description, group_id?, pi_user_id? }
-  router.post('/requests', auth, route(pool, async (req, res, conn) => {
-    res.status(201).json(await requests.createRequest(conn, req.user, req.body || {}, await loadPeople(coreApi)));
+  router.post('/requests', auth, askCore, route(pool, async (req, res, conn) => {
+    res.status(201).json(await requests.createRequest(conn, req.user, req.body || {}, await loadPeople(coreApi), req.coreMayCreate));
   }));
 
   router.post('/requests/:id/cancel', auth, route(pool, async (req, res, conn) => {

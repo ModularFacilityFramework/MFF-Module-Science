@@ -1,7 +1,8 @@
-// What Science uses from core 0.1.224 or later when it is there: notifications
-// and a page check outside a request. On an older core, a decision is still
-// shown inside Science and only administrators and developers are reported as
-// approvers.
+// What Science uses from core 0.1.224 or later when it is there: notifications,
+// a page check outside a request, and core's rule for who may create a project.
+// On an older core, a decision is still shown inside Science, only
+// administrators and developers are reported as approvers, and Science's own
+// rule decides who may create.
 const { isStaff } = require('./access');
 const { SCIENCE_LINK } = require('./membership');
 
@@ -17,6 +18,26 @@ async function isApprover(coreApi, user) {
     return false;
   }
 }
+
+// Core's rule for who may create a project (Science's, plus core's setting
+// "people with a project may create more"): true or false, or null on a core
+// without it. Core asks our provider's canCreate on the way, so call this before
+// taking a database connection, and never from canCreate itself.
+async function coreMayCreate(coreApi, user) {
+  if (!coreApi.projects || typeof coreApi.projects.mayCreate !== 'function') return null;
+  try {
+    return (await coreApi.projects.mayCreate(user)) === true;
+  } catch (err) {
+    console.warn(`[science] could not ask core who may create a project: ${err.message}`);
+    return false;
+  }
+}
+
+// Middleware: puts that answer on req.coreMayCreate.
+const askCoreMayCreate = (coreApi) => async (req, res, next) => {
+  req.coreMayCreate = await coreMayCreate(coreApi, req.user);
+  next();
+};
 
 function decisionNotice(request, projectNumber) {
   const approved = request.status === 'approved';
@@ -44,4 +65,4 @@ async function notifyDecision(coreApi, request, projectNumber = null) {
   }
 }
 
-module.exports = { APPROVAL_PAGE, isApprover, decisionNotice, notifyDecision };
+module.exports = { APPROVAL_PAGE, isApprover, coreMayCreate, askCoreMayCreate, decisionNotice, notifyDecision };

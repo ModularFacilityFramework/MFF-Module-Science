@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { isWorkProject, mayCreate, hasWorkProject, strandedBy, peopleBehind } = require('../services/membership');
+const { coreMayCreate, askCoreMayCreate } = require('../services/coreExtras');
 const { countItems } = require('../services/projects');
 const { parseRequest, requestOptions, shapeRequest, decideRequest } = require('../services/requests');
 const { applyAssignment, assignmentOptions } = require('../services/assignment');
@@ -121,4 +122,18 @@ test('the requester is notified of a decision, and a failing notification change
   assert.deepEqual(sent[0][1], { title: 'Your project request was approved', message: 'Your project request "Ribosome" was approved. The project P-0007 is yours.\nNote: Welcome', link: '/dashboard?tab=science' });
   await notifyDecision({}, request);
   await notifyDecision({ notify: async () => { throw new Error('mail down'); } }, { ...request, status: 'declined' });
+});
+
+test('core\'s rule for who may create: null without it, true only for true, false when it fails', async () => {
+  assert.equal(await coreMayCreate({}, person(1)), null);
+  assert.equal(await coreMayCreate({ projects: {} }, person(1)), null);
+  const core = (answer) => ({ projects: { mayCreate: async () => answer } });
+  assert.equal(await coreMayCreate(core(true), person(1)), true);
+  assert.equal(await coreMayCreate(core(false), person(1)), false);
+  assert.equal(await coreMayCreate(core(undefined), person(1)), false);
+  assert.equal(await coreMayCreate({ projects: { mayCreate: async () => { throw new Error('down'); } } }, person(1)), false);
+  const req = { user: person(1) };
+  let went = false;
+  await askCoreMayCreate(core(true))(req, {}, () => { went = true; });
+  assert.deepEqual([req.coreMayCreate, went], [true, true]);
 });

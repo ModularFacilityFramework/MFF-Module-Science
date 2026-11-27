@@ -1,6 +1,6 @@
 // "Request a project": the form and the person's own requests, and for approvers
 // the requests to decide. The backend decides who may do what.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
 import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
@@ -74,14 +74,17 @@ function RequestForm({ coreApi, onSent }) {
       <input style={{ ...ui.input, width: '100%', boxSizing: 'border-box' }} maxLength={255} value={draft.title} onChange={(e) => set('title', e.target.value)} />
       <label style={ui.label}>What is it for? (a few lines)</label>
       <textarea style={ui.textarea} rows={4} maxLength={2000} value={draft.description} onChange={(e) => set('description', e.target.value)} />
-      <label style={ui.label}>Group (optional)</label>
       {GroupPicker ? (
-        <GroupPicker value={draft.group_id} onChange={(id) => set('group_id', id)} />
+        // Core's picker draws its own "Group" label.
+        <div style={{ marginTop: '8px' }}><GroupPicker value={draft.group_id} onChange={(id) => set('group_id', id)} /></div>
       ) : (
-        <select style={ui.input} value={draft.group_id || ''} onChange={(e) => set('group_id', Number(e.target.value) || null)}>
-          <option value="">None</option>
-          {options.groups.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
-        </select>
+        <>
+          <label style={ui.label}>Group (optional)</label>
+          <select style={ui.input} value={draft.group_id || ''} onChange={(e) => set('group_id', Number(e.target.value) || null)}>
+            <option value="">None</option>
+            {options.groups.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
+        </>
       )}
       <label style={ui.label}>PI (optional)</label>
       <select style={{ ...ui.input, minWidth: '240px' }} value={draft.pi_user_id || ''} onChange={(e) => set('pi_user_id', Number(e.target.value) || null)}>
@@ -205,12 +208,15 @@ function RequestsTab({ coreApi, info, isApprover, refresh }) {
   const [busy, setBusy] = useState(false);
 
   // Reading the list is seeing the decisions: they are marked as seen, and stay
-  // labelled "new" until the tab is opened again.
+  // labelled "new" until the tab is opened again. The ids are kept here because a
+  // later load of the list (React's development mode makes two) already says seen.
+  const fresh = useRef(new Set());
   const load = useCallback(() => {
     api.get('/science/requests/mine')
       .then((res) => {
-        setMine(res.data);
         const ids = res.data.filter((r) => r.unseen).map((r) => r.id);
+        ids.forEach((id) => fresh.current.add(id));
+        setMine(res.data.map((r) => ({ ...r, unseen: fresh.current.has(r.id) })));
         if (ids.length) api.post('/science/requests/seen', { ids }).then(refresh).catch(() => {});
       })
       .catch((err) => { setError(errorText(err)); setMine([]); });
