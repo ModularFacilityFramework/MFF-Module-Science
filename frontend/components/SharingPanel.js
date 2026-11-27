@@ -5,6 +5,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ui, ACCESS_COLORS, ACCESS_LABELS, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
+
+const HEADERS = [['label', 'Name'], ['member_type', 'Type'], ['access', 'Access']];
+const COLUMNS = {
+  label: { type: 'text' },
+  member_type: { value: (m) => (m.member_type === 'group' ? 'Group' : 'User'), type: 'text' },
+  access: { value: (m) => ACCESS_LABELS[m.access], type: 'text' }
+};
 
 function SharingPanel({ coreApi, project, reload }) {
   const { api } = coreApi;
@@ -17,6 +25,7 @@ function SharingPanel({ coreApi, project, reload }) {
   const [pick, setPick] = useState('');
   const [level, setLevel] = useState('read');
   const [newOwner, setNewOwner] = useState('');
+  const table = useSortedRowsSafe(coreApi, project.members, COLUMNS, { rememberAs: 'science.project.members', defaultSort: { column: 'label', direction: 'asc' } });
 
   useEffect(() => {
     if (!project.can_manage) return;
@@ -61,9 +70,9 @@ function SharingPanel({ coreApi, project, reload }) {
       ) : (
         <div style={ui.wrapper}>
           <table style={ui.table}>
-            <thead style={ui.thead}><tr><th style={ui.th}>Name</th><th style={ui.th}>Type</th><th style={ui.th}>Access</th>{project.can_manage && <th style={ui.th} />}</tr></thead>
+            <thead style={ui.thead}><tr>{sortHeaders(coreApi, table, HEADERS, ui.th)}{project.can_manage && <th style={ui.th} />}</tr></thead>
             <tbody>
-              {project.members.map((m) => (
+              {table.rows.map((m) => (
                 <tr key={m.id}>
                   <td style={ui.td}>{m.label}</td>
                   <td style={ui.td}>{m.member_type === 'group' ? 'Group' : 'User'}</td>

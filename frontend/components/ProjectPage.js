@@ -4,6 +4,7 @@ import SharingPanel from './SharingPanel';
 import ProjectMaterialsPanel from './ProjectMaterialsPanel';
 import { ui, ACCESS_COLORS, ACCESS_LABELS, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 
 const SUBTABS = [
   ['overview', 'Overview'],
@@ -34,13 +35,24 @@ function ItemRow({ coreApi, item }) {
   );
 }
 
+const ITEM_HEADERS = [['module_id', 'Module'], ['item_type', 'Type'], ['title', 'Title'], ['status', 'Status'], ['created_by_label', 'Created by'], ['updated_at', 'Updated']];
+const ITEM_COLUMNS = {
+  module_id: { type: 'text' },
+  item_type: { type: 'text' },
+  title: { type: 'text' },
+  status: { type: 'text' },
+  created_by_label: { type: 'text' },
+  updated_at: { type: 'date' }
+};
+
 function ItemsPanel({ coreApi, project }) {
+  const table = useSortedRowsSafe(coreApi, project.items, ITEM_COLUMNS, { rememberAs: 'science.project.items', defaultSort: { column: 'updated_at', direction: 'desc' } });
   if (!project.items.length) return <div style={ui.empty}>Nothing has been run or recorded in this project yet. Other modules add their jobs here.</div>;
   return (
     <div style={ui.wrapper}>
       <table style={ui.table}>
-        <thead style={ui.thead}><tr>{['Module', 'Type', 'Title', 'Status', 'Created by', 'Updated'].map((h) => <th key={h} style={ui.th}>{h}</th>)}</tr></thead>
-        <tbody>{project.items.map((i) => <ItemRow key={i.id} coreApi={coreApi} item={i} />)}</tbody>
+        <thead style={ui.thead}><tr>{sortHeaders(coreApi, table, ITEM_HEADERS, ui.th)}</tr></thead>
+        <tbody>{table.rows.map((i) => <ItemRow key={i.id} coreApi={coreApi} item={i} />)}</tbody>
       </table>
     </div>
   );

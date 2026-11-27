@@ -54,7 +54,6 @@ module.exports = function buildRouter(coreApi) {
       const u = describeUser(people, m.member_id);
       return { id: m.id, member_type: 'user', member_id: m.member_id, access: m.access, name: u.name, username: u.username, label: u.label };
     });
-    memberRows.sort((a, b) => a.member_type.localeCompare(b.member_type) || a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
 
     const materials = await conn.query(
       `SELECT m.id, m.kind, m.name, m.description, m.uniprot_id, m.visibility, m.owner_user_id, pm.added_at

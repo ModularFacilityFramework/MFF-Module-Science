@@ -11,6 +11,8 @@ The `science` module of MFF (display name **Science**): research work per projec
 - **API for other modules** (`/external/...`, call it through `coreApi.callModule` with `"science"` in the module's `requires`): list projects, check a user's access to one, register and remove items. See `backend/routes/externalRoutes.js`.
 - **Projects provider** (feeds core's shared project picker): `backend/services/projectsProvider.js` is registered with core where it serves projects itself (so a project member needs no Science grant); `frontend/projectsProvider.js` is the fallback for an older core.
 
+Every table sorts with core's shared helpers (two buttons per column, natural order, the choice saved per user; core 0.1.223 or later). The module has no sorting of its own for tables: use `frontend/lib/sorting.js` for any new one.
+
 Not built yet: sample declarations, BAG, shipments.
 
 ## Quick start
@@ -34,7 +36,7 @@ backend/
   tests/                # node --test unit tests
 frontend/
   components/           # Dashboard, ProjectsTab, ProjectPage, SharingPanel, MaterialsTab ...
-  lib/                  # shared styles, page-state wrapper
+  lib/                  # shared styles, page-state and table-sorting wrappers
 docs/                   # link to the shared docs repo
 ```
 

@@ -3,14 +3,22 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ProjectPage from './ProjectPage';
 import { ui, ACCESS_COLORS, ACCESS_LABELS, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 
 const SCOPES = [
   ['all', 'All I can see'],
   ['mine', 'My projects'],
   ['shared', 'Shared with me']
 ];
-const SORT_KEYS = ['number', 'title', 'owner_label', 'item_count', 'updated_at'];
-const validSort = (s) => s && typeof s === 'object' && SORT_KEYS.includes(s.key) && (s.dir === 'asc' || s.dir === 'desc');
+const HEADERS = [['number', 'Number'], ['title', 'Title'], ['owner_label', 'Owner'], ['item_count', 'Items'], ['updated_at', 'Updated'], ['access', 'Your access']];
+const COLUMNS = {
+  number: { type: 'text' },
+  title: { type: 'text' },
+  owner_label: { type: 'text' },
+  item_count: { type: 'number' },
+  updated_at: { type: 'date' },
+  access: { value: (p) => ACCESS_LABELS[p.access], type: 'text' }
+};
 const validDraft = (d) => d === null || (d && typeof d === 'object' && typeof d.title === 'string' && typeof d.description === 'string');
 
 function ProjectList({ coreApi, onOpen }) {
@@ -18,7 +26,6 @@ function ProjectList({ coreApi, onOpen }) {
   const [scope, setScope] = usePageStateSafe(coreApi, 'science.projects.scope', 'all', SCOPES.map((s) => s[0]));
   const [search, setSearch] = usePageStateSafe(coreApi, 'science.projects.search', '', (v) => typeof v === 'string');
   const [archived, setArchived] = usePageStateSafe(coreApi, 'science.projects.archived', false, (v) => typeof v === 'boolean');
-  const [sort, setSort] = usePageStateSafe(coreApi, 'science.projects.sort', { key: 'updated_at', dir: 'desc' }, validSort);
   const [draft, setDraft, resetDraft] = usePageStateSafe(coreApi, 'science.projects.draft', null, validDraft);
   const [projects, setProjects] = useState(null);
   const [error, setError] = useState('');
@@ -32,22 +39,11 @@ function ProjectList({ coreApi, onOpen }) {
   }, [api, scope, archived]);
   useEffect(load, [load]);
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const filtered = (projects || []).filter((p) => !needle || `${p.number} ${p.title} ${p.owner_label}`.toLowerCase().includes(needle));
-    const dir = sort.dir === 'asc' ? 1 : -1;
-    return filtered.sort((a, b) => {
-      const x = a[sort.key];
-      const y = b[sort.key];
-      const cmp = typeof x === 'number' && typeof y === 'number' ? x - y : String(x ?? '').toLowerCase().localeCompare(String(y ?? '').toLowerCase());
-      return cmp * dir;
-    });
-  }, [projects, search, sort]);
-
-  function toggleSort(key) {
-    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
-  }
-  const arrow = (key) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+    return (projects || []).filter((p) => !needle || `${p.number} ${p.title} ${p.owner_label}`.toLowerCase().includes(needle));
+  }, [projects, search]);
+  const table = useSortedRowsSafe(coreApi, filtered, COLUMNS, { rememberAs: 'science.projects.table', defaultSort: { column: 'updated_at', direction: 'desc' } });
 
   function create() {
     setSaving(true);
@@ -87,21 +83,16 @@ function ProjectList({ coreApi, onOpen }) {
       {error && <div style={ui.error}>{error}</div>}
       {projects === null ? (
         <div style={ui.loading}>Loading...</div>
-      ) : rows.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div style={ui.empty}>No projects to show.</div>
       ) : (
         <div style={ui.wrapper}>
           <table style={ui.table}>
             <thead style={ui.thead}>
-              <tr>
-                {[['number', 'Number'], ['title', 'Title'], ['owner_label', 'Owner'], ['item_count', 'Items'], ['updated_at', 'Updated']].map(([k, label]) => (
-                  <th key={k} style={{ ...ui.th, cursor: 'pointer' }} onClick={() => toggleSort(k)}>{label}{arrow(k)}</th>
-                ))}
-                <th style={ui.th}>Your access</th>
-              </tr>
+              <tr>{sortHeaders(coreApi, table, HEADERS, ui.th)}</tr>
             </thead>
             <tbody>
-              {rows.map((p) => (
+              {table.rows.map((p) => (
                 <tr key={p.id} style={p.archived ? ui.greyedRow : undefined}>
                   <td style={ui.td}>{p.number}</td>
                   <td style={ui.td}><button style={ui.linkButton} onClick={() => onOpen(p.id)}>{p.title}</button>{p.archived && <span style={ui.chip('#999')}>archived</span>}</td>

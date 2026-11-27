@@ -3,8 +3,17 @@
 // material can only be linked into projects owned by its own owner.
 import React, { useEffect, useState } from 'react';
 import { ui, errorText } from '../lib/ui';
+import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 
 export const KIND_LABELS = { protein: 'Protein', complex: 'Complex', ligand: 'Ligand' };
+const HEADERS = [['kind', 'Kind'], ['name', 'Name'], ['uniprot_id', 'UniProt'], ['owner_label', 'Owner'], ['visibility', 'Visibility']];
+const COLUMNS = {
+  kind: { value: (m) => KIND_LABELS[m.kind], type: 'text' },
+  name: { type: 'text' },
+  uniprot_id: { type: 'text' },
+  owner_label: { type: 'text' },
+  visibility: { type: 'text' }
+};
 
 function ProjectMaterialsPanel({ coreApi, project, reload }) {
   const { api } = coreApi;
@@ -12,6 +21,7 @@ function ProjectMaterialsPanel({ coreApi, project, reload }) {
   const [pick, setPick] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const table = useSortedRowsSafe(coreApi, project.materials, COLUMNS, { rememberAs: 'science.project.materials', defaultSort: { column: 'name', direction: 'asc' } });
 
   useEffect(() => {
     if (!project.can_write) return;
@@ -34,9 +44,9 @@ function ProjectMaterialsPanel({ coreApi, project, reload }) {
       ) : (
         <div style={ui.wrapper}>
           <table style={ui.table}>
-            <thead style={ui.thead}><tr>{['Kind', 'Name', 'UniProt', 'Owner', 'Visibility'].map((h) => <th key={h} style={ui.th}>{h}</th>)}{project.can_write && <th style={ui.th} />}</tr></thead>
+            <thead style={ui.thead}><tr>{sortHeaders(coreApi, table, HEADERS, ui.th)}{project.can_write && <th style={ui.th} />}</tr></thead>
             <tbody>
-              {project.materials.map((m) => (
+              {table.rows.map((m) => (
                 <tr key={m.id}>
                   <td style={ui.td}>{KIND_LABELS[m.kind]}</td>
                   <td style={ui.td}>{m.name}</td>

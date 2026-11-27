@@ -5,11 +5,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ui, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 import { KIND_LABELS } from './ProjectMaterialsPanel';
 
 const KINDS = ['protein', 'complex', 'ligand'];
 const SCOPES = [['visible', 'All I can see'], ['mine', 'Mine'], ['public', 'Public']];
 const EMPTY = { id: null, kind: 'protein', name: '', description: '', sequence: '', uniprot_id: '', smiles: '', visibility: 'private' };
+const HEADERS = [['kind', 'Kind'], ['name', 'Name'], ['uniprot_id', 'UniProt'], ['owner_label', 'Owner'], ['visibility', 'Visibility'], ['project_count', 'In projects']];
+const COLUMNS = {
+  kind: { value: (m) => KIND_LABELS[m.kind], type: 'text' },
+  name: { type: 'text' },
+  uniprot_id: { type: 'text' },
+  owner_label: { type: 'text' },
+  visibility: { type: 'text' },
+  project_count: { type: 'number' }
+};
 const validForm = (f) => f === null || (f && typeof f === 'object' && KINDS.includes(f.kind) && typeof f.name === 'string');
 
 function MaterialForm({ form, setForm, onSave, onCancel, saving }) {
@@ -86,6 +96,7 @@ function MaterialsTab({ coreApi }) {
     const needle = search.trim().toLowerCase();
     return (rows || []).filter((m) => !needle || `${m.name} ${m.uniprot_id || ''} ${m.owner_label}`.toLowerCase().includes(needle));
   }, [rows, search]);
+  const table = useSortedRowsSafe(coreApi, shown, COLUMNS, { rememberAs: 'science.materials.table', defaultSort: { column: 'name', direction: 'asc' } });
 
   function save() {
     setSaving(true);
@@ -135,9 +146,9 @@ function MaterialsTab({ coreApi }) {
       ) : (
         <div style={ui.wrapper}>
           <table style={ui.table}>
-            <thead style={ui.thead}><tr>{['Kind', 'Name', 'UniProt', 'Owner', 'Visibility', 'In projects', ''].map((h, i) => <th key={i} style={ui.th}>{h}</th>)}</tr></thead>
+            <thead style={ui.thead}><tr>{sortHeaders(coreApi, table, HEADERS, ui.th)}<th style={ui.th} /></tr></thead>
             <tbody>
-              {shown.map((m) => (
+              {table.rows.map((m) => (
                 <tr key={m.id}>
                   <td style={ui.td}>{KIND_LABELS[m.kind]}</td>
                   <td style={ui.td}>{m.name}</td>
