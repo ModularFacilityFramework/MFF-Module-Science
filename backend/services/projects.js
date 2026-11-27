@@ -2,6 +2,7 @@
 const path = require('path');
 const { resolveAccess, isStaff, levelFromNumber, canWrite, canManage, canRead } = require('./access');
 const { describeUser } = require('./people');
+const { cleanString } = require('./http');
 
 async function loadProjectAccess(conn, id, user) {
   const rows = await conn.query('SELECT * FROM science_projects WHERE id = ?', [id]);
@@ -71,6 +72,36 @@ function slug(title) {
   return s || 'project';
 }
 
+// One project in the list's shape (what core's ProjectPicker calls a Project),
+// or null when it does not exist or the user may not read it.
+async function getProjectSummary(conn, id, user, people) {
+  const loaded = await loadProjectAccess(conn, id, user);
+  if (!loaded || loaded.access === 'none') return null;
+  const rows = await conn.query('SELECT COUNT(*) AS item_count FROM science_project_items WHERE project_id = ?', [id]);
+  return summarise({ ...loaded.project, item_count: rows[0].item_count }, loaded.access, people);
+}
+
+// Creates a project owned by `user`; used by the Science page and by the picker's
+// "+ New project". Returns { id, number }.
+async function createProject(conn, coreApi, user, body) {
+  const title = cleanString(body.title, { max: 255, required: true, field: 'title' });
+  const description = cleanString(body.description, { max: 20000, field: 'description' });
+  await conn.beginTransaction();
+  try {
+    const r = await conn.query(
+      'INSERT INTO science_projects (title, description, owner_user_id, created_by) VALUES (?, ?, ?, ?)',
+      [title, description, user.id, user.id]
+    );
+    const number = `P-${String(r.insertId).padStart(4, '0')}`;
+    await conn.query('UPDATE science_projects SET number = ?, folder_path = ? WHERE id = ?', [number, folderPathFor(coreApi, number, title), r.insertId]);
+    await conn.commit();
+    return { id: r.insertId, number };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  }
+}
+
 // Where modules write this project's output, e.g. <base>/projects/P-0001_my-title.
 // Only a stored path: this module does not create the folder or set permissions
 // on it. null when the admin has not set MODULE_SCIENCE_DATA_BASE_DIR.
@@ -80,4 +111,4 @@ function folderPathFor(coreApi, number, title) {
   return path.join(base, 'projects', `${number}_${slug(title)}`);
 }
 
-module.exports = { loadProjectAccess, accessFlags, summarise, listProjects, slug, folderPathFor };
+module.exports = { loadProjectAccess, accessFlags, summarise, listProjects, getProjectSummary, createProject, slug, folderPathFor };

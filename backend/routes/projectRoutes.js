@@ -7,7 +7,7 @@ const express = require('express');
 const { route, HttpError, cleanString, parseId } = require('../services/http');
 const { canWrite, canManage, materialLinkableTo, isStaff } = require('../services/access');
 const { loadPeople, describeUser, userLabel, isSelectable } = require('../services/people');
-const { loadProjectAccess, accessFlags, listProjects, folderPathFor } = require('../services/projects');
+const { loadProjectAccess, accessFlags, listProjects, createProject } = require('../services/projects');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
@@ -37,22 +37,7 @@ module.exports = function buildRouter(coreApi) {
 
   // POST /projects { title, description } - anyone with access to the module; the caller becomes the owner.
   router.post('/projects', auth, route(pool, async (req, res, conn) => {
-    const title = cleanString(req.body.title, { max: 255, required: true, field: 'title' });
-    const description = cleanString(req.body.description, { max: 20000, field: 'description' });
-    await conn.beginTransaction();
-    try {
-      const r = await conn.query(
-        'INSERT INTO science_projects (title, description, owner_user_id, created_by) VALUES (?, ?, ?, ?)',
-        [title, description, req.user.id, req.user.id]
-      );
-      const number = `P-${String(r.insertId).padStart(4, '0')}`;
-      await conn.query('UPDATE science_projects SET number = ?, folder_path = ? WHERE id = ?', [number, folderPathFor(coreApi, number, title), r.insertId]);
-      await conn.commit();
-      res.status(201).json({ id: r.insertId, number });
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    }
+    res.status(201).json(await createProject(conn, coreApi, req.user, req.body || {}));
   }));
 
   // GET /projects/:id - the project page: members, linked materials and registered items.

@@ -1,14 +1,16 @@
-// The API other modules use (through coreApi.callModule / callModuleAsUser, with
-// "science" in their manifest "requires"): list the projects a user may pick,
-// check the user's access to one, and register or remove the items a module
-// created in it. Every route authenticates the user and applies the same
-// access rules as the UI; core's delegation only lifts Science's own module
-// and page grants, never the project checks below.
+// The API for everything outside Science's own pages:
+//  - core's shared ProjectPicker, from the browser (frontend/projectsProvider.js):
+//    GET /external/projects, GET /external/projects/:id, POST /external/projects;
+//  - other modules' backends (coreApi.callModule / callModuleAsUser, with
+//    "science" in their manifest "requires"): the same, plus checking the user's
+//    access to a project and registering or removing the items they create in it.
+// Every route authenticates the user and applies the same access rules as the
+// UI; core letting a call through to Science never skips the project checks.
 const express = require('express');
 const { route, HttpError, cleanString, cleanLink, parseId } = require('../services/http');
 const { canWrite } = require('../services/access');
 const { loadPeople } = require('../services/people');
-const { loadProjectAccess, accessFlags, listProjects } = require('../services/projects');
+const { loadProjectAccess, accessFlags, listProjects, getProjectSummary, createProject } = require('../services/projects');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
@@ -28,6 +30,20 @@ module.exports = function buildRouter(coreApi) {
     const people = await loadPeople(coreApi);
     const scope = ['mine', 'shared', 'all'].includes(req.query.scope) ? req.query.scope : 'all';
     res.json(await listProjects(conn, req.user, people, { scope, search: req.query.search, includeArchived: req.query.archived === '1' }));
+  }));
+
+  // GET /external/projects/:id - one project in the same flat shape as the list; 404 when the user may not read it.
+  router.get('/external/projects/:id', auth, route(pool, async (req, res, conn) => {
+    const people = await loadPeople(coreApi);
+    const project = await getProjectSummary(conn, parseId(req.params.id, 'project id'), req.user, people);
+    if (!project) throw new HttpError(404, 'Project not found');
+    res.json(project);
+  }));
+
+  // POST /external/projects { title, description? } - the picker's "+ New project". The user becomes the owner.
+  router.post('/external/projects', auth, route(pool, async (req, res, conn) => {
+    const { id } = await createProject(conn, coreApi, req.user, req.body || {});
+    res.status(201).json(await getProjectSummary(conn, id, req.user, await loadPeople(coreApi)));
   }));
 
   // GET /external/projects/:id/access - what may this user do in the project?
