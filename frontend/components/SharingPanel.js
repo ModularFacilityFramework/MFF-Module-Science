@@ -15,6 +15,13 @@ const COLUMNS = {
   access: { value: (m) => ACCESS_LABELS[m.access], type: 'text' }
 };
 
+const NAMES_SHOWN = 5;
+function strandedWarning(people, question) {
+  const more = people.length - NAMES_SHOWN;
+  const names = people.slice(0, NAMES_SHOWN).join(', ') + (more > 0 ? ` and ${more} more` : '');
+  return `This leaves ${names} without a project. They will have to ask for one before they can run or record project work.\n\n${question}`;
+}
+
 function SharingPanel({ coreApi, project, reload }) {
   const { api } = coreApi;
   const base = `/science/projects/${project.id}`;
@@ -55,8 +62,24 @@ function SharingPanel({ coreApi, project, reload }) {
   }
 
   const add = () => run(api.post(`${base}/members`, { member_type: type, member_id: everyone ? undefined : Number(pick), access: level }).then(() => setPick('')));
-  const setAccess = (m, access) => run(api.put(`${base}/members/${m.id}`, { access }));
-  const remove = (m) => run(api.delete(`${base}/members/${m.id}`));
+  // Removing a share, or lowering it to read, is always allowed; if it leaves someone with
+  // no project, say who before doing it.
+  function afterWarning(m, access, question, request) {
+    setBusy(true);
+    setError('');
+    api.get(`${base}/members/${m.id}/impact`, { params: { access } })
+      .then(
+        (res) => !res.data.without_project.length || window.confirm(strandedWarning(res.data.without_project, question)),
+        () => window.confirm(`Could not check whether this leaves someone without a project. ${question}`)
+      )
+      .then((go) => (go ? run(request()) : setBusy(false)));
+  }
+  const setAccess = (m, access) => {
+    const request = () => api.put(`${base}/members/${m.id}`, { access });
+    if (m.access === 'write' && access === 'read') afterWarning(m, 'read', 'Change to read anyway?', request);
+    else run(request());
+  };
+  const remove = (m) => afterWarning(m, 'none', 'Remove anyway?', () => api.delete(`${base}/members/${m.id}`));
   function handOver() {
     const target = targets.users.find((u) => u.id === Number(newOwner));
     if (!target || !window.confirm(`Hand ${project.number} over to ${target.label}? You stay on the project as a write member.`)) return;

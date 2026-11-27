@@ -9,6 +9,7 @@ const { canWrite, canManage, itemsLimitedTo, materialLinkableTo, isStaff } = req
 const { loadPeople, describeUser, userLabel, isSelectable } = require('../services/people');
 const { loadProjectAccess, accessFlags, listProjects, createProject } = require('../services/projects');
 const { findTemplateId, ensureTemplateQuietly } = require('../services/template');
+const { requireMayCreate, removalImpact } = require('../services/membership');
 const { listItems } = require('../services/items');
 
 module.exports = function buildRouter(coreApi) {
@@ -38,9 +39,11 @@ module.exports = function buildRouter(coreApi) {
     }));
   }));
 
-  // POST /projects { title, description } - anyone with access to the module; the caller becomes the owner.
+  // POST /projects { title, description } - the caller becomes the owner. Someone with no
+  // project yet asks for one instead (services/membership.js).
   router.post('/projects', auth, route(pool, async (req, res, conn) => {
     await ensureTemplateQuietly(conn, coreApi);
+    await requireMayCreate(conn, req.user, await loadPeople(coreApi));
     res.status(201).json(await createProject(conn, coreApi, req.user, req.body || {}));
   }));
 
@@ -205,6 +208,22 @@ module.exports = function buildRouter(coreApi) {
     if (!r.affectedRows) throw new HttpError(404, 'Member not found');
     await touch(conn, project.id);
     res.json({ success: true });
+  }));
+
+  // GET /projects/:id/members/:memberRowId/impact?access=none|read - who would be left with no
+  // project if that share were removed (none) or lowered to read. A warning only: it is allowed.
+  router.get('/projects/:id/members/:memberRowId/impact', auth, route(pool, async (req, res, conn) => {
+    const { project, members } = await requireProject(conn, req, 'manage');
+    const wanted = req.query.access === 'read' ? 'read' : 'none';
+    // "Everyone" exists on the Project template only, which never counts as someone's project.
+    if (req.params.memberRowId === 'everyone') {
+      res.json({ without_project: [] });
+      return;
+    }
+    const rowId = parseId(req.params.memberRowId, 'member');
+    const member = members.find((m) => Number(m.id) === rowId);
+    if (!member || Number(member.project_id) !== Number(project.id)) throw new HttpError(404, 'Member not found');
+    res.json({ without_project: await removalImpact(conn, member, wanted, await loadPeople(coreApi)) });
   }));
 
   // POST /projects/:id/materials { material_id } - link a material the caller can see. Private materials only go into projects owned by their owner.

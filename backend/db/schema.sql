@@ -112,3 +112,27 @@ CREATE TABLE IF NOT EXISTS science_project_items (
   KEY idx_module_item (module_id, item_type, item_id),
   CONSTRAINT fk_science_items_project FOREIGN KEY (project_id) REFERENCES science_projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- "Request a project" (backend/services/requests.js). pending_user_id is the
+-- requester while the request waits and NULL afterwards; being unique, it
+-- allows one waiting request per person.
+CREATE TABLE IF NOT EXISTS science_project_requests (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  requester_user_id BIGINT NOT NULL,
+  pending_user_id BIGINT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  group_id BIGINT NULL,
+  pi_user_id BIGINT NULL,
+  status ENUM('pending','approved','declined','cancelled') NOT NULL DEFAULT 'pending',
+  decided_by BIGINT NULL,
+  decided_at TIMESTAMP NULL DEFAULT NULL,
+  decision_note VARCHAR(1000) NULL,
+  project_id BIGINT NULL,
+  seen_by_requester TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pending (pending_user_id),
+  KEY idx_requester (requester_user_id),
+  KEY idx_status (status),
+  CONSTRAINT fk_science_requests_project FOREIGN KEY (project_id) REFERENCES science_projects(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

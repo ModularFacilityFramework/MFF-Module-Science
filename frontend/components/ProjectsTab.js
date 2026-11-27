@@ -21,7 +21,7 @@ const COLUMNS = {
 };
 const validDraft = (d) => d === null || (d && typeof d === 'object' && typeof d.title === 'string' && typeof d.description === 'string');
 
-function ProjectList({ coreApi, onOpen }) {
+function ProjectList({ coreApi, onOpen, canCreate, refresh }) {
   const { api } = coreApi;
   const [scope, setScope] = usePageStateSafe(coreApi, 'science.projects.scope', 'all', SCOPES.map((s) => s[0]));
   const [search, setSearch] = usePageStateSafe(coreApi, 'science.projects.search', '', (v) => typeof v === 'string');
@@ -49,7 +49,7 @@ function ProjectList({ coreApi, onOpen }) {
     setSaving(true);
     setError('');
     api.post('/science/projects', { title: draft.title, description: draft.description })
-      .then((res) => { resetDraft(); onOpen(res.data.id); })
+      .then((res) => { resetDraft(); if (refresh) refresh(); onOpen(res.data.id); })
       .catch((err) => setError(errorText(err)))
       .finally(() => setSaving(false));
   }
@@ -63,10 +63,10 @@ function ProjectList({ coreApi, onOpen }) {
         <input style={{ ...ui.input, minWidth: '220px' }} placeholder="Search number, title or owner" value={search} onChange={(e) => setSearch(e.target.value)} />
         <label style={ui.meta}><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} /> Show archived</label>
         <span style={{ flex: 1 }} />
-        {draft === null && <button style={ui.button('#28a745')} onClick={() => setDraft({ title: '', description: '' })}>+ New project</button>}
+        {canCreate && draft === null && <button style={ui.button('#28a745')} onClick={() => setDraft({ title: '', description: '' })}>+ New project</button>}
       </div>
 
-      {draft !== null && (
+      {canCreate && draft !== null && (
         <div style={{ ...ui.wrapper, padding: '12px', marginBottom: '16px', overflow: 'visible' }}>
           <strong style={{ fontSize: '13px' }}>New project</strong>
           <label style={ui.label}>Title</label>
@@ -110,14 +110,15 @@ function ProjectList({ coreApi, onOpen }) {
   );
 }
 
-function ProjectsTab({ coreApi }) {
+// info is GET /science/status: someone with no project yet asks for one instead of creating it.
+function ProjectsTab({ coreApi, info, refresh }) {
   // The open project survives leaving the tab and a reload. If it was deleted or
   // the user lost access, ProjectPage reports it missing and we fall back to the list.
   const [selected, setSelected] = usePageStateSafe(coreApi, 'science.projects.selected', null, (v) => v === null || Number.isInteger(v));
   if (selected !== null) {
     return <ProjectPage key={selected} coreApi={coreApi} projectId={selected} onBack={() => setSelected(null)} />;
   }
-  return <ProjectList coreApi={coreApi} onOpen={setSelected} />;
+  return <ProjectList coreApi={coreApi} onOpen={setSelected} canCreate={!!(info && info.can_create)} refresh={refresh} />;
 }
 
 export default ProjectsTab;

@@ -6,6 +6,7 @@ const manifest = require('../module.manifest.json');
 const { createPool } = require('./config/database');
 const buildProjectRouter = require('./routes/projectRoutes');
 const buildMaterialRouter = require('./routes/materialRoutes');
+const buildRequestRouter = require('./routes/requestRoutes');
 const buildExternalRouter = require('./routes/externalRoutes');
 const { createServerProjectsProvider } = require('./services/projectsProvider');
 const { ensureTemplateQuietly } = require('./services/template');
@@ -28,6 +29,7 @@ module.exports = function register(coreApi) {
   const router = express.Router();
   router.use(buildProjectRouter(moduleApi));
   router.use(buildMaterialRouter(moduleApi));
+  router.use(buildRequestRouter(moduleApi));
   router.use(buildExternalRouter(moduleApi));
   // Core serves projects to every signed-in user from this provider, so a member
   // without a Science grant can still use the picker. Older cores lack it.

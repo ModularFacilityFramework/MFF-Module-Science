@@ -1,11 +1,17 @@
 {
   "id": "science",
   "label": "Science",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "tablePrefix": "science_",
   "mountPath": "/science",
   "backendEntry": "backend/index.js",
   "frontendEntry": "frontend/index.js",
+  "pages": [
+    {
+      "key": "project_approvals",
+      "label": "Approve project requests"
+    }
+  ],
   "config": [
     {
       "key": "DATA_BASE_DIR",

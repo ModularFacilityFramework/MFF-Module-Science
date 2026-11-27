@@ -14,6 +14,7 @@ const { loadPeople } = require('../services/people');
 const { loadProjectAccess, accessFlags, listProjects, getProjectSummary, createProject } = require('../services/projects');
 const { findTemplateId, ensureTemplate, ensureTemplateQuietly } = require('../services/template');
 const { parseItem, listItems, upsertItem, removeItem, adoptItems } = require('../services/items');
+const { SCIENCE_LINK, projectStatus, requireMayCreate } = require('../services/membership');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
@@ -51,6 +52,13 @@ module.exports = function buildRouter(coreApi) {
     res.json(await listProjects(conn, req.user, people, { scope, search: req.query.search, includeArchived: req.query.archived === '1' }));
   }));
 
+  // GET /external/project-status - may this user start project-based work? has_project is false
+  // when they can write in no project (the Project template does not count): send them to `link`.
+  router.get('/external/project-status', auth, route(pool, async (req, res, conn) => {
+    await ensureTemplateQuietly(conn, coreApi);
+    res.json({ ...(await projectStatus(conn, req.user, await loadPeople(coreApi))), link: SCIENCE_LINK });
+  }));
+
   // GET /external/projects/:id - one project in the same flat shape as the list; 404 when the user may not read it.
   router.get('/external/projects/:id', auth, route(pool, async (req, res, conn) => {
     const people = await loadPeople(coreApi);
@@ -59,9 +67,11 @@ module.exports = function buildRouter(coreApi) {
     res.json(project);
   }));
 
-  // POST /external/projects { title, description? } - the picker's "+ New project". The user becomes the owner.
+  // POST /external/projects { title, description? } - the picker's "+ New project". The user becomes the
+  // owner. Refused (403) to someone with no project yet.
   router.post('/external/projects', auth, route(pool, async (req, res, conn) => {
     await ensureTemplateQuietly(conn, coreApi);
+    await requireMayCreate(conn, req.user, await loadPeople(coreApi));
     const { id } = await createProject(conn, coreApi, req.user, req.body || {});
     res.status(201).json(await getProjectSummary(conn, id, req.user, await loadPeople(coreApi)));
   }));
