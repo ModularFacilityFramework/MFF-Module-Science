@@ -7,6 +7,7 @@ const { createPool } = require('./config/database');
 const buildProjectRouter = require('./routes/projectRoutes');
 const buildMaterialRouter = require('./routes/materialRoutes');
 const buildExternalRouter = require('./routes/externalRoutes');
+const { createServerProjectsProvider } = require('./services/projectsProvider');
 
 module.exports = function register(coreApi) {
   // Own database, credentials from coreApi.getModuleConfig(); shadows core's pool for every route below.
@@ -15,6 +16,11 @@ module.exports = function register(coreApi) {
   router.use(buildProjectRouter(moduleApi));
   router.use(buildMaterialRouter(moduleApi));
   router.use(buildExternalRouter(moduleApi));
+  // Core serves projects to every signed-in user from this provider, so a member
+  // without a Science grant can still use the picker. Older cores lack it.
+  if (typeof coreApi.registerProjectsProvider === 'function') {
+    coreApi.registerProjectsProvider(createServerProjectsProvider(moduleApi));
+  }
   return {
     router,
     moduleId: manifest.id,

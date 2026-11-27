@@ -1,7 +1,8 @@
-// The "projects provider" core's shared ProjectPicker reads from. Plain data
-// access through the module's /external API (the only Science routes a user of
-// another project-based module needs); core renders the picker. The contract is
-// in docs/MFF-Core_module-core-api.md ("Projects"):
+// The browser-side "projects provider" for core's shared ProjectPicker. A core
+// with server-side project routes uses backend/services/projectsProvider.js
+// instead; this one is the fallback for an older core, where only users with
+// access to Science can reach these routes. The contract is in
+// docs/MFF-Core_module-core-api.md ("Projects"):
 //
 //   list({ scope: 'mine' | 'shared' | 'all', search, includeArchived }) -> Project[]
 //     read-only projects are included with can_write false, so a picker that

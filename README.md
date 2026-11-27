@@ -9,7 +9,7 @@ The `science` module of MFF (display name **Science**): research work per projec
 - **Materials**: proteins, complexes and ligands. Each record has an owner and is private or public. Public records can be linked into anyone's projects; private ones only into projects owned by their owner. One record can be in many projects.
 - **Items**: every job or object another module records against a project, shown on the project page. An item from a module the viewer cannot use is greyed out.
 - **API for other modules** (`/external/...`, call it through `coreApi.callModule` with `"science"` in the module's `requires`): list projects, check a user's access to one, register and remove items. See `backend/routes/externalRoutes.js`.
-- **Projects provider** (`frontend/projectsProvider.js`): registered with core through `coreApi.registerProjectsProvider` once core offers it, to feed core's shared project picker.
+- **Projects provider** (feeds core's shared project picker): `backend/services/projectsProvider.js` is registered with core where it serves projects itself (so a project member needs no Science grant); `frontend/projectsProvider.js` is the fallback for an older core.
 
 Not built yet: sample declarations, BAG, shipments.
 
