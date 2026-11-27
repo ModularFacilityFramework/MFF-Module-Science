@@ -5,6 +5,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ui, ACCESS_COLORS, ACCESS_LABELS, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { projectsChanged } from '../lib/projectsChanged';
 import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 
 const TYPE_LABELS = { user: 'User', group: 'Group', everyone: 'Everyone' };
@@ -56,7 +57,7 @@ function SharingPanel({ coreApi, project, reload }) {
     setBusy(true);
     setError('');
     return request
-      .then(reload)
+      .then(() => { projectsChanged(coreApi); return reload(); })
       .catch((err) => setError(errorText(err)))
       .finally(() => setBusy(false));
   }

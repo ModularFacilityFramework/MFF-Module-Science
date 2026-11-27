@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ProjectPage from './ProjectPage';
 import { ui, ACCESS_COLORS, ACCESS_LABELS, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { projectsChanged } from '../lib/projectsChanged';
 import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 
 const SCOPES = [
@@ -49,7 +50,7 @@ function ProjectList({ coreApi, onOpen, canCreate, refresh }) {
     setSaving(true);
     setError('');
     api.post('/science/projects', { title: draft.title, description: draft.description })
-      .then((res) => { resetDraft(); if (refresh) refresh(); onOpen(res.data.id); })
+      .then((res) => { resetDraft(); projectsChanged(coreApi); if (refresh) refresh(); onOpen(res.data.id); })
       .catch((err) => setError(errorText(err)))
       .finally(() => setSaving(false));
   }

@@ -49,12 +49,12 @@ function createServerProjectsProvider(coreApi) {
         const { id } = await createProject(conn, coreApi, user, body || {});
         return summary(conn, user, id);
       }),
-    // Core (0.1.224 on) decides who may create and asks this on the way; it refuses only
+    // Core (0.1.227 on) decides who may create and asks this on the way; it refuses only
     // someone core refuses too (no project yet), and does the whole job on an older core.
     canCreate: (user) =>
       withConnection(async (conn) => (await projectStatus(conn, user, await loadPeople(coreApi))).can_create),
 
-    // The rest is for core 0.1.224 on: its project tabs, its "no project yet"
+    // The rest is for core 0.1.227 on: its project tabs, its "no project yet"
     // state and its registration approval screen. Each throws an error with a
     // .status when refused.
 

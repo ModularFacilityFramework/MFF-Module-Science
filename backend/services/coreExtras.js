@@ -1,4 +1,4 @@
-// What Science uses from core 0.1.224 or later when it is there: notifications,
+// What Science uses from core 0.1.227 or later when it is there: notifications,
 // a page check outside a request, and core's rule for who may create a project.
 // On an older core, a decision is still shown inside Science, only
 // administrators and developers are reported as approvers, and Science's own

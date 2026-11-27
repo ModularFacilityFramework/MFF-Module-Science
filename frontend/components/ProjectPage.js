@@ -5,6 +5,7 @@ import SharingPanel from './SharingPanel';
 import ProjectMaterialsPanel from './ProjectMaterialsPanel';
 import { ui, ACCESS_COLORS, ACCESS_LABELS, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { projectsChanged } from '../lib/projectsChanged';
 import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 
 const SUBTABS = [
@@ -77,7 +78,7 @@ function OverviewPanel({ coreApi, project, reload }) {
     setSaving(true);
     setError('');
     api.put(`/science/projects/${project.id}`, body)
-      .then(() => { if (done) done(); reload(); })
+      .then(() => { if (done) done(); projectsChanged(coreApi); reload(); })
       .catch((err) => setError(errorText(err)))
       .finally(() => setSaving(false));
   }

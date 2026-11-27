@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, errorText } from '../lib/ui';
 import { usePageStateSafe } from '../lib/usePageStateSafe';
+import { projectsChanged } from '../lib/projectsChanged';
 import { useSortedRowsSafe, sortHeaders } from '../lib/sorting';
 
 const STATUS_LABELS = { pending: 'Waiting', approved: 'Approved', declined: 'Declined', cancelled: 'Cancelled' };
@@ -211,19 +212,26 @@ function RequestsTab({ coreApi, info, isApprover, refresh }) {
   // labelled "new" until the tab is opened again. The ids are kept here because a
   // later load of the list (React's development mode makes two) already says seen.
   const fresh = useRef(new Set());
+  const core = useRef(coreApi); // for load(), which must not change with coreApi
+  core.current = coreApi;
   const load = useCallback(() => {
     api.get('/science/requests/mine')
       .then((res) => {
         const ids = res.data.filter((r) => r.unseen).map((r) => r.id);
         ids.forEach((id) => fresh.current.add(id));
         setMine(res.data.map((r) => ({ ...r, unseen: fresh.current.has(r.id) })));
-        if (ids.length) api.post('/science/requests/seen', { ids }).then(refresh).catch(() => {});
+        // A decision the person has not seen may have given them a project.
+        if (ids.length) {
+          projectsChanged(core.current);
+          api.post('/science/requests/seen', { ids }).then(refresh).catch(() => {});
+        }
       })
       .catch((err) => { setError(errorText(err)); setMine([]); });
   }, [api, refresh]);
   useEffect(load, [load]);
 
-  const changed = () => { load(); refresh(); };
+  // A request sent, cancelled or decided.
+  const changed = () => { projectsChanged(coreApi); load(); refresh(); };
   function cancel(r) {
     setBusy(true);
     setError('');

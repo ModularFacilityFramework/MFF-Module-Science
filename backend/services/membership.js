@@ -4,7 +4,7 @@
 // themselves: they ask for one (services/requests.js). Administrators and
 // developers can always create. There is no limit on how many projects a person
 // may have (decided 27/11/2026): disk quotas, later, are the only limit planned.
-// On core 0.1.224 or later core's own rule (this one plus its settings) decides
+// On core 0.1.227 or later core's own rule (this one plus its settings) decides
 // who may create: coreRule below, from coreMayCreate() in
 // services/coreExtras.js; null where core has none.
 const { isStaff, resolveAccess, canWrite } = require('./access');
