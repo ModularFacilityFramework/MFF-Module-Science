@@ -1,5 +1,6 @@
 // One project: overview, the items other modules registered, linked materials, sharing.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import SharingPanel from './SharingPanel';
 import ProjectMaterialsPanel from './ProjectMaterialsPanel';
 import { ui, ACCESS_COLORS, ACCESS_LABELS, errorText } from '../lib/ui';
@@ -25,7 +26,8 @@ function ItemRow({ coreApi, item }) {
       <td style={ui.td}>{item.module_id}</td>
       <td style={ui.td}>{item.item_type}</td>
       <td style={ui.td}>
-        {!blocked && item.link ? <a href={item.link}>{item.title}</a> : item.title}
+        {/* An in-app path: the router adds the base path of a sub-path install, a plain <a> would not. */}
+        {!blocked && item.link ? <Link to={item.link}>{item.title}</Link> : item.title}
         {blocked && <div style={ui.meta}>No access to {item.module_id}</div>}
       </td>
       <td style={ui.td}>{item.status || ''}</td>
