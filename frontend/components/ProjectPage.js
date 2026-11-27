@@ -47,13 +47,19 @@ const ITEM_COLUMNS = {
 
 function ItemsPanel({ coreApi, project }) {
   const table = useSortedRowsSafe(coreApi, project.items, ITEM_COLUMNS, { rememberAs: 'science.project.items', defaultSort: { column: 'updated_at', direction: 'desc' } });
-  if (!project.items.length) return <div style={ui.empty}>Nothing has been run or recorded in this project yet. Other modules add their jobs here.</div>;
+  const ownOnly = project.items_own_only && <div style={ui.hint}>In the Project template you see only the items you made.</div>;
+  if (!project.items.length) {
+    return <div>{ownOnly}<div style={ui.empty}>Nothing has been run or recorded in this project yet. Other modules add their jobs here.</div></div>;
+  }
   return (
-    <div style={ui.wrapper}>
-      <table style={ui.table}>
-        <thead style={ui.thead}><tr>{sortHeaders(coreApi, table, ITEM_HEADERS, ui.th)}</tr></thead>
-        <tbody>{table.rows.map((i) => <ItemRow key={i.id} coreApi={coreApi} item={i} />)}</tbody>
-      </table>
+    <div>
+      {ownOnly}
+      <div style={ui.wrapper}>
+        <table style={ui.table}>
+          <thead style={ui.thead}><tr>{sortHeaders(coreApi, table, ITEM_HEADERS, ui.th)}</tr></thead>
+          <tbody>{table.rows.map((i) => <ItemRow key={i.id} coreApi={coreApi} item={i} />)}</tbody>
+        </table>
+      </div>
     </div>
   );
 }

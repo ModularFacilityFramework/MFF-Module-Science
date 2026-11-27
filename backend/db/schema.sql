@@ -24,11 +24,23 @@ CREATE TABLE IF NOT EXISTS science_projects (
   owner_user_id BIGINT NOT NULL,
   folder_path VARCHAR(1024) NULL,
   archived TINYINT(1) NOT NULL DEFAULT 0,
+  -- Shared with every signed-in user at this level; NULL = not. Only the
+  -- Project template offers it.
+  everyone_access ENUM('read','write') NULL,
   created_by BIGINT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_number (number),
   KEY idx_owner (owner_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- The one "Project template" project (backend/services/template.js). The single
+-- slot makes its creation happen once.
+CREATE TABLE IF NOT EXISTS science_template (
+  slot TINYINT NOT NULL PRIMARY KEY,
+  project_id BIGINT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_science_template_project FOREIGN KEY (project_id) REFERENCES science_projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Who a project is shared with: a user or a whole group, read or write.
@@ -97,5 +109,6 @@ CREATE TABLE IF NOT EXISTS science_project_items (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_item (project_id, module_id, item_type, item_id),
   KEY idx_project (project_id),
+  KEY idx_module_item (module_id, item_type, item_id),
   CONSTRAINT fk_science_items_project FOREIGN KEY (project_id) REFERENCES science_projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

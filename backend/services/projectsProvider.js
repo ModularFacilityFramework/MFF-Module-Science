@@ -8,6 +8,7 @@
 // `user` is core's req.user: { id, username, email, group_id, roles: [names] }.
 const { loadPeople } = require('./people');
 const { listProjects, getProjectSummary, createProject } = require('./projects');
+const { ensureTemplateQuietly } = require('./template');
 
 function createServerProjectsProvider(coreApi) {
   async function withConnection(fn) {
@@ -23,8 +24,10 @@ function createServerProjectsProvider(coreApi) {
   return {
     // Only projects this user can read.
     list: (user, { scope = 'all', search = '', includeArchived = false } = {}) =>
-      withConnection(async (conn) =>
-        listProjects(conn, user, await loadPeople(coreApi), { scope, search, includeArchived: includeArchived === true })),
+      withConnection(async (conn) => {
+        await ensureTemplateQuietly(conn, coreApi);
+        return listProjects(conn, user, await loadPeople(coreApi), { scope, search, includeArchived: includeArchived === true });
+      }),
     // null when the project does not exist or this user may not read it.
     get: async (user, id) => {
       const projectId = Number(id);
@@ -34,6 +37,7 @@ function createServerProjectsProvider(coreApi) {
     // The user becomes the owner. A bad title throws an error with status 400.
     create: (user, body) =>
       withConnection(async (conn) => {
+        await ensureTemplateQuietly(conn, coreApi);
         const { id } = await createProject(conn, coreApi, user, body || {});
         return summary(conn, user, id);
       })

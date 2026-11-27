@@ -5,9 +5,11 @@
 // 404, so its existence is not leaked.
 const express = require('express');
 const { route, HttpError, cleanString, parseId } = require('../services/http');
-const { canWrite, canManage, materialLinkableTo, isStaff } = require('../services/access');
+const { canWrite, canManage, itemsLimitedTo, materialLinkableTo, isStaff } = require('../services/access');
 const { loadPeople, describeUser, userLabel, isSelectable } = require('../services/people');
 const { loadProjectAccess, accessFlags, listProjects, createProject } = require('../services/projects');
+const { findTemplateId, ensureTemplateQuietly } = require('../services/template');
+const { listItems } = require('../services/items');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
@@ -28,6 +30,7 @@ module.exports = function buildRouter(coreApi) {
   router.get('/projects', auth, route(pool, async (req, res, conn) => {
     const people = await loadPeople(coreApi);
     const scope = ['mine', 'shared', 'all'].includes(req.query.scope) ? req.query.scope : 'all';
+    await ensureTemplateQuietly(conn, coreApi);
     res.json(await listProjects(conn, req.user, people, {
       scope,
       search: req.query.search,
@@ -37,6 +40,7 @@ module.exports = function buildRouter(coreApi) {
 
   // POST /projects { title, description } - anyone with access to the module; the caller becomes the owner.
   router.post('/projects', auth, route(pool, async (req, res, conn) => {
+    await ensureTemplateQuietly(conn, coreApi);
     res.status(201).json(await createProject(conn, coreApi, req.user, req.body || {}));
   }));
 
@@ -55,16 +59,19 @@ module.exports = function buildRouter(coreApi) {
       return { id: m.id, member_type: 'user', member_id: m.member_id, access: m.access, name: u.name, username: u.username, label: u.label };
     });
 
+    if (project.everyone_access) {
+      memberRows.push({ id: 'everyone', member_type: 'everyone', member_id: 0, access: project.everyone_access, name: 'Everyone', username: null, label: 'Everyone (all users)' });
+    }
+
     const materials = await conn.query(
       `SELECT m.id, m.kind, m.name, m.description, m.uniprot_id, m.visibility, m.owner_user_id, pm.added_at
          FROM science_project_materials pm JOIN science_materials m ON m.id = pm.material_id
         WHERE pm.project_id = ? ORDER BY m.kind, m.name`,
       [project.id]
     );
-    const items = await conn.query(
-      'SELECT id, module_id, item_type, item_id, title, status, link, created_by, created_at, updated_at FROM science_project_items WHERE project_id = ? ORDER BY updated_at DESC, id DESC',
-      [project.id]
-    );
+    const isTemplate = (await findTemplateId(conn)) === Number(project.id);
+    const onlyCreatedBy = itemsLimitedTo({ isTemplate, access, user: req.user });
+    const items = await listItems(conn, project.id, people, { onlyCreatedBy });
     res.json({
       id: project.id,
       number: project.number,
@@ -72,13 +79,15 @@ module.exports = function buildRouter(coreApi) {
       description: project.description,
       folder_path: project.folder_path,
       archived: !!project.archived,
+      is_template: isTemplate,
       created_at: project.created_at,
       updated_at: project.updated_at,
       owner,
       ...accessFlags(access),
       members: memberRows,
       materials: materials.map((m) => ({ ...m, owner_label: describeUser(people, m.owner_user_id).label })),
-      items: items.map((i) => ({ ...i, created_by_label: describeUser(people, i.created_by).label }))
+      items,
+      items_own_only: onlyCreatedBy !== null
     });
   }));
 
@@ -129,10 +138,21 @@ module.exports = function buildRouter(coreApi) {
     });
   }));
 
-  // POST /projects/:id/members { member_type: 'user'|'group', member_id, access: 'read'|'write' } - add, or change the level of, a share. Read by default.
+  const setEveryone = (conn, id, access) => conn.query('UPDATE science_projects SET everyone_access = ? WHERE id = ?', [access, id]);
+
+  // POST /projects/:id/members { member_type: 'user'|'group'|'everyone', member_id, access: 'read'|'write' } - add, or change the level of, a share.
+  // Read by default. "everyone" (no member_id) is only offered on the Project template.
   router.post('/projects/:id/members', auth, route(pool, async (req, res, conn) => {
     const { project } = await requireProject(conn, req, 'manage');
     const type = req.body.member_type;
+    if (type === 'everyone') {
+      if ((await findTemplateId(conn)) !== Number(project.id)) throw new HttpError(400, 'Only the Project template can be shared with everyone');
+      const level = req.body.access === undefined ? 'read' : req.body.access;
+      if (level !== 'read' && level !== 'write') throw new HttpError(400, 'access must be "read" or "write"');
+      await setEveryone(conn, project.id, level);
+      res.status(201).json({ success: true });
+      return;
+    }
     if (type !== 'user' && type !== 'group') throw new HttpError(400, 'member_type must be "user" or "group"');
     const memberId = parseId(req.body.member_id, 'member_id');
     const access = req.body.access === undefined ? 'read' : req.body.access;
@@ -160,6 +180,12 @@ module.exports = function buildRouter(coreApi) {
     const { project } = await requireProject(conn, req, 'manage');
     const access = req.body.access;
     if (access !== 'read' && access !== 'write') throw new HttpError(400, 'access must be "read" or "write"');
+    if (req.params.memberRowId === 'everyone') {
+      if (!project.everyone_access) throw new HttpError(404, 'Member not found');
+      await setEveryone(conn, project.id, access);
+      res.json({ success: true });
+      return;
+    }
     const r = await conn.query('UPDATE science_project_members SET access = ? WHERE id = ? AND project_id = ?', [access, parseId(req.params.memberRowId, 'member'), project.id]);
     if (!r.affectedRows) throw new HttpError(404, 'Member not found');
     await touch(conn, project.id);
@@ -169,6 +195,12 @@ module.exports = function buildRouter(coreApi) {
   // DELETE /projects/:id/members/:memberRowId
   router.delete('/projects/:id/members/:memberRowId', auth, route(pool, async (req, res, conn) => {
     const { project } = await requireProject(conn, req, 'manage');
+    if (req.params.memberRowId === 'everyone') {
+      if (!project.everyone_access) throw new HttpError(404, 'Member not found');
+      await setEveryone(conn, project.id, null);
+      res.json({ success: true });
+      return;
+    }
     const r = await conn.query('DELETE FROM science_project_members WHERE id = ? AND project_id = ?', [parseId(req.params.memberRowId, 'member'), project.id]);
     if (!r.affectedRows) throw new HttpError(404, 'Member not found');
     await touch(conn, project.id);

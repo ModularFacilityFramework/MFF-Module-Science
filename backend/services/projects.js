@@ -1,6 +1,6 @@
 // Shared project queries used by the UI routes and the /external routes.
 const path = require('path');
-const { resolveAccess, isStaff, levelFromNumber, canWrite, canManage, canRead } = require('./access');
+const { resolveAccess, isStaff, higher, levelFromNumber, itemsLimitedTo, canWrite, canManage, canRead } = require('./access');
 const { describeUser } = require('./people');
 const { cleanString } = require('./http');
 
@@ -30,6 +30,7 @@ function summarise(p, access, people) {
     owner_username: owner.username,
     owner_label: owner.label,
     archived: !!p.archived,
+    is_template: !!Number(p.is_template),
     item_count: p.item_count === undefined ? undefined : Number(p.item_count),
     created_at: p.created_at,
     updated_at: p.updated_at,
@@ -42,25 +43,28 @@ function summarise(p, access, people) {
 async function listProjects(conn, user, people, { scope = 'all', search = '', includeArchived = false } = {}) {
   const staff = isStaff(user);
   const rows = await conn.query(
-    `SELECT p.id, p.number, p.title, p.owner_user_id, p.archived, p.created_at, p.updated_at,
+    `SELECT p.id, p.number, p.title, p.owner_user_id, p.archived, p.everyone_access, p.created_at, p.updated_at,
+            EXISTS (SELECT 1 FROM science_template t WHERE t.project_id = p.id) AS is_template,
             (SELECT COUNT(*) FROM science_project_items i WHERE i.project_id = p.id) AS item_count,
+            (SELECT COUNT(*) FROM science_project_items i WHERE i.project_id = p.id AND i.created_by = ?) AS own_item_count,
             (SELECT MAX(CASE m.access WHEN 'write' THEN 2 ELSE 1 END) FROM science_project_members m
               WHERE m.project_id = p.id
                 AND ((m.member_type = 'user' AND m.member_id = ?) OR (m.member_type = 'group' AND m.member_id = ?))) AS member_level
        FROM science_projects p
       ORDER BY p.updated_at DESC, p.id DESC`,
-    [user.id, user.group_id == null ? -1 : user.group_id]
+    [user.id, user.id, user.group_id == null ? -1 : user.group_id]
   );
   const needle = String(search || '').trim().toLowerCase();
   const out = [];
   for (const p of rows) {
     const mine = Number(p.owner_user_id) === Number(user.id);
-    const level = mine ? 'owner' : staff ? 'admin' : levelFromNumber(Number(p.member_level) || 0);
+    const level = mine ? 'owner' : staff ? 'admin' : higher(levelFromNumber(Number(p.member_level) || 0), p.everyone_access || 'none');
     if (level === 'none') continue;
     if (scope === 'mine' && !mine) continue;
-    if (scope === 'shared' && (mine || !p.member_level)) continue;
+    if (scope === 'shared' && (mine || (!p.member_level && !p.everyone_access))) continue;
     if (!includeArchived && p.archived) continue;
-    const s = summarise(p, level, people);
+    const limited = itemsLimitedTo({ isTemplate: !!Number(p.is_template), access: level, user }) !== null;
+    const s = summarise(limited ? { ...p, item_count: p.own_item_count } : p, level, people);
     if (needle && !`${s.number} ${s.title} ${s.owner_label}`.toLowerCase().includes(needle)) continue;
     out.push(s);
   }
@@ -77,8 +81,15 @@ function slug(title) {
 async function getProjectSummary(conn, id, user, people) {
   const loaded = await loadProjectAccess(conn, id, user);
   if (!loaded || loaded.access === 'none') return null;
-  const rows = await conn.query('SELECT COUNT(*) AS item_count FROM science_project_items WHERE project_id = ?', [id]);
-  return summarise({ ...loaded.project, item_count: rows[0].item_count }, loaded.access, people);
+  const rows = await conn.query(
+    `SELECT (SELECT COUNT(*) FROM science_project_items WHERE project_id = ?) AS item_count,
+            (SELECT COUNT(*) FROM science_project_items WHERE project_id = ? AND created_by = ?) AS own_item_count,
+            (SELECT COUNT(*) FROM science_template WHERE project_id = ?) AS is_template`,
+    [id, id, user.id, id]
+  );
+  const { item_count: all, own_item_count: own, is_template: isTemplate } = rows[0];
+  const limited = itemsLimitedTo({ isTemplate: !!Number(isTemplate), access: loaded.access, user }) !== null;
+  return summarise({ ...loaded.project, item_count: limited ? own : all, is_template: isTemplate }, loaded.access, people);
 }
 
 // Creates a project owned by `user`; used by the Science page and by the picker's
@@ -92,14 +103,20 @@ async function createProject(conn, coreApi, user, body) {
       'INSERT INTO science_projects (title, description, owner_user_id, created_by) VALUES (?, ?, ?, ?)',
       [title, description, user.id, user.id]
     );
-    const number = `P-${String(r.insertId).padStart(4, '0')}`;
-    await conn.query('UPDATE science_projects SET number = ?, folder_path = ? WHERE id = ?', [number, folderPathFor(coreApi, number, title), r.insertId]);
+    const number = await assignNumber(conn, coreApi, r.insertId, title);
     await conn.commit();
     return { id: r.insertId, number };
   } catch (err) {
     await conn.rollback();
     throw err;
   }
+}
+
+// Gives a new project its number (P-0001) and stored folder path.
+async function assignNumber(conn, coreApi, id, title) {
+  const number = `P-${String(id).padStart(4, '0')}`;
+  await conn.query('UPDATE science_projects SET number = ?, folder_path = ? WHERE id = ?', [number, folderPathFor(coreApi, number, title), id]);
+  return number;
 }
 
 // Where modules write this project's output, e.g. <base>/projects/P-0001_my-title.
@@ -111,4 +128,4 @@ function folderPathFor(coreApi, number, title) {
   return path.join(base, 'projects', `${number}_${slug(title)}`);
 }
 
-module.exports = { loadProjectAccess, accessFlags, summarise, listProjects, getProjectSummary, createProject, slug, folderPathFor };
+module.exports = { loadProjectAccess, accessFlags, summarise, listProjects, getProjectSummary, createProject, assignNumber, slug, folderPathFor };

@@ -29,11 +29,14 @@ function memberLevel(members, user) {
   return best;
 }
 
+const higher = (a, b) => (RANK[b] > RANK[a] ? b : a);
+
 function resolveAccess({ project, members, user }) {
   if (!user || !project) return 'none';
   if (Number(project.owner_user_id) === Number(user.id)) return 'owner';
   if (isStaff(user)) return 'admin';
-  return memberLevel(members, user);
+  // everyone_access: the project is shared with every signed-in user.
+  return higher(memberLevel(members, user), project.everyone_access || 'none');
 }
 
 const atLeast = (access, level) => RANK[access] >= RANK[level];
@@ -44,6 +47,14 @@ const canManage = (access) => atLeast(access, 'owner');
 // Converts the SQL aggregate used by the project list (2 = write, 1 = read) to a level.
 function levelFromNumber(n) {
   return n >= 2 ? 'write' : n === 1 ? 'read' : 'none';
+}
+
+// Whose items may this user see in a project? Everything, except in the Project
+// template: it is shared with everyone, so there each person sees only the items
+// they made; its owner, administrators and developers see them all. null = no
+// limit, otherwise only items created by that user id.
+function itemsLimitedTo({ isTemplate, access, user }) {
+  return isTemplate && !canManage(access) ? Number(user.id) : null;
 }
 
 // A private material may only go into projects owned by its own owner; a
@@ -61,12 +72,14 @@ module.exports = {
   STAFF_ROLES,
   RANK,
   isStaff,
+  higher,
   memberLevel,
   resolveAccess,
   canRead,
   canWrite,
   canManage,
   levelFromNumber,
+  itemsLimitedTo,
   materialLinkableTo,
   materialVisibleTo
 };

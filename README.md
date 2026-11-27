@@ -8,7 +8,8 @@ The `science` module of MFF (display name **Science**): research work per projec
 - **Sharing**: share a project with a user or a group, read by default, raised to write. Access adds up (the highest grant wins). Administrators and developers see and manage every project. Access control is at the application level only; this module sets no file permissions.
 - **Materials**: proteins, complexes and ligands. Each record has an owner and is private or public. Public records can be linked into anyone's projects; private ones only into projects owned by their owner. One record can be in many projects.
 - **Items**: every job or object another module records against a project, shown on the project page. An item from a module the viewer cannot use is greyed out.
-- **API for other modules** (`/external/...`, call it through `coreApi.callModule` with `"science"` in the module's `requires`): list projects, check a user's access to one, register and remove items. See `backend/routes/externalRoutes.js`.
+- **Project template**: one project that Science creates itself, once, on a new or an existing installation (`backend/services/template.js`). Its owner is the first administrator or developer; everyone has read access, which the owner can change. It is the example project, and it holds the work modules did before projects existed. In it each person sees only the items they made; its owner, administrators and developers see all.
+- **API for other modules** (`/external/...`, call it through `coreApi.callModule` with `"science"` in the module's `requires`): list projects, check a user's access to one, read, register and remove items, and move older work into the Project template. See `backend/routes/externalRoutes.js`.
 - **Projects provider** (feeds core's shared project picker): `backend/services/projectsProvider.js` is registered with core where it serves projects itself (so a project member needs no Science grant); `frontend/projectsProvider.js` is the fallback for an older core.
 
 Every table sorts with core's shared helpers (two buttons per column, natural order, the choice saved per user; core 0.1.223 or later). The module has no sorting of its own for tables: use `frontend/lib/sorting.js` for any new one.
@@ -32,7 +33,7 @@ module.manifest.json    # id, label, version, tablePrefix, mountPath
 backend/
   db/schema.sql         # the single source of truth for this module's tables
   routes/               # projectRoutes (UI), materialRoutes, externalRoutes (other modules)
-  services/             # access rules (pure, unit-tested), people, project queries
+  services/             # access rules (pure, unit-tested), people, project queries, items, the Project template
   tests/                # node --test unit tests
 frontend/
   components/           # Dashboard, ProjectsTab, ProjectPage, SharingPanel, MaterialsTab ...

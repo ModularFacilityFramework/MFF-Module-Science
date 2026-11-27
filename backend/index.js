@@ -8,6 +8,19 @@ const buildProjectRouter = require('./routes/projectRoutes');
 const buildMaterialRouter = require('./routes/materialRoutes');
 const buildExternalRouter = require('./routes/externalRoutes');
 const { createServerProjectsProvider } = require('./services/projectsProvider');
+const { ensureTemplateQuietly } = require('./services/template');
+
+async function createTemplateAtStartup(coreApi) {
+  let conn;
+  try {
+    conn = await coreApi.pool.getConnection();
+    await ensureTemplateQuietly(conn, coreApi);
+  } catch (err) {
+    console.warn(`[science] could not create the Project template at startup: ${err.message}`);
+  } finally {
+    if (conn) conn.release();
+  }
+}
 
 module.exports = function register(coreApi) {
   // Own database, credentials from coreApi.getModuleConfig(); shadows core's pool for every route below.
@@ -21,6 +34,9 @@ module.exports = function register(coreApi) {
   if (typeof coreApi.registerProjectsProvider === 'function') {
     coreApi.registerProjectsProvider(createServerProjectsProvider(moduleApi));
   }
+  // The Project template exists from the start, on a new and an existing install.
+  // If this attempt fails, the next project list or template call tries again.
+  createTemplateAtStartup(moduleApi);
   return {
     router,
     moduleId: manifest.id,
