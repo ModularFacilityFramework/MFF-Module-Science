@@ -8,8 +8,7 @@ const { isStaff } = require('../services/access');
 const { loadPeople } = require('../services/people');
 const { projectStatus } = require('../services/membership');
 const requests = require('../services/requests');
-
-const APPROVAL_PAGE = 'project_approvals';
+const { APPROVAL_PAGE, notifyDecision } = require('../services/coreExtras');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
@@ -78,11 +77,13 @@ module.exports = function buildRouter(coreApi) {
     router.post(`/approvals/:id/${action}`, ...approver, route(pool, async (req, res, conn) => {
       const id = parseId(req.params.id, 'request id');
       const note = (req.body || {}).note;
-      res.json(await requests.decideRequest(conn, coreApi, req.user, id, { approve, note }, await loadPeople(coreApi)));
+      const decided = await requests.decideRequest(conn, coreApi, req.user, id, { approve, note }, await loadPeople(coreApi));
+      const made = decided.project_id ? await conn.query('SELECT number FROM science_projects WHERE id = ?', [decided.project_id]) : [];
+      res.json(decided);
+      // After the answer: mail can be slow, and a failure changes nothing here.
+      notifyDecision(coreApi, decided, made.length ? made[0].number : null);
     }));
   }
 
   return router;
 };
-
-module.exports.APPROVAL_PAGE = APPROVAL_PAGE;

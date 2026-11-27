@@ -14,6 +14,7 @@ const { listItems } = require('./items');
 const { SCIENCE_LINK, projectStatus, requireMayCreate } = require('./membership');
 const requests = require('./requests');
 const { assignmentOptions, applyAssignment } = require('./assignment');
+const { isApprover } = require('./coreExtras');
 
 function createServerProjectsProvider(coreApi) {
   async function withConnection(fn) {
@@ -48,12 +49,14 @@ function createServerProjectsProvider(coreApi) {
         const { id } = await createProject(conn, coreApi, user, body || {});
         return summary(conn, user, id);
       }),
+    // Core (0.1.224 on) decides who may create; this refuses only someone it refuses too
+    // (no project yet), and does the whole job on an older core.
     canCreate: (user) =>
       withConnection(async (conn) => (await projectStatus(conn, user, await loadPeople(coreApi))).can_create),
 
-    // The rest is beyond what core v0.1.223 calls: for its project tabs, its
-    // "no project yet" state and its registration approval screen. Each throws
-    // an error with a .status when refused.
+    // The rest is for core 0.1.224 on: its project tabs, its "no project yet"
+    // state and its registration approval screen. Each throws an error with a
+    // .status when refused.
 
     // The items of one project, or of one module in it; null when the user may
     // not read the project. The Project template's own-items rule applies.
@@ -73,8 +76,15 @@ function createServerProjectsProvider(coreApi) {
       withConnection(async (conn) => {
         await ensureTemplateQuietly(conn, coreApi);
         const people = await loadPeople(coreApi);
-        const waiting = (await requests.listMine(conn, user.id, people)).find((r) => r.status === 'pending') || null;
-        return { ...(await projectStatus(conn, user, people)), pending_request: waiting, link: SCIENCE_LINK };
+        const waiting = (await requests.listMine(conn, user.id, people)).find((r) => r.status === 'pending');
+        const { has_project: hasProject, can_request: canRequest } = await projectStatus(conn, user, people);
+        return {
+          has_project: hasProject,
+          can_request: canRequest,
+          is_approver: await isApprover(coreApi, user),
+          pending_request: waiting ? { id: waiting.id, title: waiting.title, created_at: waiting.created_at } : null,
+          request_link: SCIENCE_LINK
+        };
       }),
     // At registration approval (developers and administrators only).
     assignment: {

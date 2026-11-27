@@ -1,7 +1,7 @@
 {
   "id": "science",
   "label": "Science",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "tablePrefix": "science_",
   "mountPath": "/science",
   "backendEntry": "backend/index.js",

@@ -93,7 +93,8 @@ async function listProjects(conn, user, people, { scope = 'all', search = '', in
     const level = mine ? 'owner' : staff ? 'admin' : higher(levelFromNumber(Number(p.member_level) || 0), p.everyone_access || 'none');
     if (level === 'none') continue;
     if (scope === 'mine' && !mine) continue;
-    if (scope === 'shared' && (mine || (!p.member_level && !p.everyone_access))) continue;
+    // 'mine' and 'shared' together: everything read by ownership or sharing, and the template.
+    if (scope === 'shared' && (mine || (!p.member_level && !p.everyone_access && !Number(p.is_template)))) continue;
     if (!includeArchived && p.archived) continue;
     const limited = itemsLimitedTo({ isTemplate: !!Number(p.is_template), access: level, user }) !== null;
     const s = summarise({ ...p, ...countItems(counts.get(Number(p.id)), limited) }, level, people);

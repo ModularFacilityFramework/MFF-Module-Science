@@ -4,6 +4,7 @@ const { isWorkProject, mayCreate, hasWorkProject, strandedBy, peopleBehind } = r
 const { countItems } = require('../services/projects');
 const { parseRequest, requestOptions, shapeRequest, decideRequest } = require('../services/requests');
 const { applyAssignment, assignmentOptions } = require('../services/assignment');
+const { isApprover, notifyDecision } = require('../services/coreExtras');
 
 const person = (id, over = {}) => ({ id, username: `u${id}`, first_name: `N${id}`, last_name: 'X', group_id: null, roles: ['facility_user'], account_type: 'standard', status: 'active', ...over });
 const project = (id, over = {}) => ({ id, owner_user_id: 100, archived: 0, everyone_access: null, is_template: 0, ...over });
@@ -102,4 +103,22 @@ test('assigning projects at registration is for administrators and developers on
   await assert.rejects(applyAssignment(conn, {}, admin, 3, {}, people), (e) => e.status === 400);
   await assert.rejects(applyAssignment(conn, {}, admin, 99, {}, people), (e) => e.status === 404);
   await assert.rejects(applyAssignment(conn, {}, admin, 1, { grants: [{ project_id: 1, access: 'owner' }] }, people), /access must be/);
+});
+
+test('approver: core\'s page check when it has one, else administrators and developers', async () => {
+  const admin = person(1, { roles: ['administrator'] });
+  assert.equal(await isApprover({}, admin), true);
+  assert.equal(await isApprover({}, person(2)), false);
+  assert.equal(await isApprover({ hasPage: async (u, key) => u.id === 2 && key === 'project_approvals' }, person(2)), true);
+  assert.equal(await isApprover({ hasPage: async () => { throw new Error('down'); } }, admin), false);
+});
+
+test('the requester is notified of a decision, and a failing notification changes nothing', async () => {
+  const sent = [];
+  const request = { id: 3, requester_user_id: 6, title: 'Ribosome', status: 'approved', decision_note: 'Welcome' };
+  await notifyDecision({ notify: async (to, msg) => { sent.push([to, msg]); return { ok: true }; } }, request, 'P-0007');
+  assert.equal(sent[0][0], 6);
+  assert.deepEqual(sent[0][1], { title: 'Your project request was approved', message: 'Your project request "Ribosome" was approved. The project P-0007 is yours.\nNote: Welcome', link: '/dashboard?tab=science' });
+  await notifyDecision({}, request);
+  await notifyDecision({ notify: async () => { throw new Error('mail down'); } }, { ...request, status: 'declined' });
 });
