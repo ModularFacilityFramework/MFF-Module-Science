@@ -22,6 +22,7 @@ test('only a project you can write in, not archived and not the template, counts
 test('without a project you cannot create one; administrators and developers always can', () => {
   assert.equal(mayCreate(person(1), 0), false);
   assert.equal(mayCreate(person(1), 1), true);
+  assert.equal(mayCreate(person(1), 10000), true); // no limit on the number
   assert.equal(mayCreate(person(1, { roles: ['developer'] }), 0), true);
 });
 

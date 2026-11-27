@@ -2,9 +2,11 @@
 // A project counts when the person can write in it, it is not archived and it is
 // not the Project template. Someone with no such project cannot make one
 // themselves: they ask for one (services/requests.js). Administrators and
-// developers can always create. On core 0.1.224 or later core's own rule (this
-// one plus its settings) decides who may create: coreRule below, from
-// coreMayCreate() in services/coreExtras.js; null where core has none.
+// developers can always create. There is no limit on how many projects a person
+// may have (decided 27/11/2026): disk quotas, later, are the only limit planned.
+// On core 0.1.224 or later core's own rule (this one plus its settings) decides
+// who may create: coreRule below, from coreMayCreate() in
+// services/coreExtras.js; null where core has none.
 const { isStaff, resolveAccess, canWrite } = require('./access');
 const { userLabel } = require('./people');
 const { listProjects } = require('./projects');
