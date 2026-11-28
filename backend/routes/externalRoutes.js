@@ -3,8 +3,9 @@
 //    GET /external/projects, GET /external/projects/:id, POST /external/projects;
 //  - other modules' backends (coreApi.callModule / callModuleAsUser, with
 //    "science" in their manifest "requires"): the same, plus checking the user's
-//    access to a project, reading, registering and removing the items in it, and
-//    moving their older work into the Project template.
+//    access to a project, reading, registering and removing the items in it,
+//    moving their older work into the Project template, and importing their old
+//    local projects.
 // Every route authenticates the user and applies the same access rules as the
 // UI; core letting a call through to Science never skips the project checks.
 const express = require('express');
@@ -16,6 +17,7 @@ const { findTemplateId, ensureTemplate, ensureTemplateQuietly } = require('../se
 const { parseItem, listItems, upsertItem, removeItem, adoptItems } = require('../services/items');
 const { SCIENCE_LINK, projectStatus, requireMayCreate } = require('../services/membership');
 const { askCoreMayCreate } = require('../services/coreExtras');
+const { importProject } = require('../services/imports');
 
 module.exports = function buildRouter(coreApi) {
   const router = express.Router();
@@ -77,6 +79,16 @@ module.exports = function buildRouter(coreApi) {
     await requireMayCreate(conn, req.user, await loadPeople(coreApi), req.coreMayCreate);
     const { id } = await createProject(conn, coreApi, req.user, req.body || {});
     res.status(201).json(await getProjectSummary(conn, id, req.user, await loadPeople(coreApi)));
+  }));
+
+  // POST /external/project-imports { old_id, title, description? } - modules only: bring one of the
+  // calling module's OLD local projects into Science, owned by the user it acts for. No approval, even
+  // as that person's first project. Safe to repeat (services/imports.js). 201 new, 200 already imported.
+  router.post('/external/project-imports', auth, route(pool, async (req, res, conn) => {
+    const moduleId = callerModule(req);
+    await ensureTemplateQuietly(conn, coreApi);
+    const result = await importProject(conn, coreApi, req.user, moduleId, req.body || {});
+    res.status(result.created ? 201 : 200).json(result);
   }));
 
   // GET /external/projects/:id/access - what may this user do in the project?

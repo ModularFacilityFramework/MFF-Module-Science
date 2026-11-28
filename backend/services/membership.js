@@ -6,7 +6,8 @@
 // may have (decided 27/11/2026): disk quotas, later, are the only limit planned.
 // On core 0.1.227 or later core's own rule (this one plus its settings) decides
 // who may create: coreRule below, from coreMayCreate() in
-// services/coreExtras.js; null where core has none.
+// services/coreExtras.js; null where core has none. One exception: a module
+// importing its old local projects (services/imports.js).
 const { isStaff, resolveAccess, canWrite } = require('./access');
 const { userLabel } = require('./people');
 const { listProjects } = require('./projects');

@@ -113,6 +113,20 @@ CREATE TABLE IF NOT EXISTS science_project_items (
   CONSTRAINT fk_science_items_project FOREIGN KEY (project_id) REFERENCES science_projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- A module's old local project brought into Science (backend/services/imports.js):
+-- which module made it, from which of its own ids, and for whom. The primary
+-- key makes the import safe to repeat.
+CREATE TABLE IF NOT EXISTS science_project_imports (
+  module_id VARCHAR(64) NOT NULL,
+  old_id VARCHAR(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  owner_user_id BIGINT NOT NULL,
+  project_id BIGINT NOT NULL,
+  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (module_id, old_id),
+  UNIQUE KEY uq_import_project (project_id),
+  CONSTRAINT fk_science_imports_project FOREIGN KEY (project_id) REFERENCES science_projects(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- "Request a project" (backend/services/requests.js). pending_user_id is the
 -- requester while the request waits and NULL afterwards; being unique, it
 -- allows one waiting request per person.
